@@ -16,13 +16,19 @@ def blur_datasource(image_path, sigma, ker_len):
     blurred = helpers.A(pic, K)
     plt.imshow(blurred, cmap='gray') 
     plt.show()
+    return blurred
 
 
 def main():
     ds1 = './datasource/one.png'
-    blur_datasource(ds1, 0.5, 5)
-    blur_datasource(ds1, 1, 7)
-    blur_datasource(ds1, 1.3, 9)
+
+    # TODO: add gaussian rumor between ]0; 0,05]
+    b1_ds1 = blur_datasource(ds1, 0.5, 5)
+    b2_ds1 = blur_datasource(ds1, 1, 7)
+    b3_ds1 = blur_datasource(ds1, 1.3, 9)
+    
+    # Add here calls to phase2
+
 
 if __name__ == "__main__":
     main()
