@@ -16,7 +16,7 @@ def blur_datasource(image_path, sigma, ker_len):
     kernel = helpers.gaussian_kernel(ker_len, sigma)
 
     # Appply Fourier
-    k = helpers.psf_fft(kernel, ker_len, (12,12))
+    k = helpers.psf_fft(kernel, ker_len, (512,512))
 
     # Blur and show
     blurred = helpers.A(picture, k)
