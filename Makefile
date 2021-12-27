@@ -1,5 +1,7 @@
 MAIN = src/main.py
 
+default: run
+
 run: 
 	python3 $(MAIN)
 
