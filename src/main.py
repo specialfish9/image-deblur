@@ -10,6 +10,20 @@ def lstsq(x, a, b):
 def grad(x, a, b):
     return helpers.AT(helpers.A(x, a), a) - helpers.AT(b, a)
 
+def naive_deblur(blurred, n, m, k):
+    # Function to minimize
+    f = lambda x: lstsq(x.reshape(n, m), k, blurred)
+    # Gradient of f
+    grad_f = lambda x: grad(x.reshape(n, m), k, blurred).reshape(n * m)
+
+    # Initial guess
+    x0 = np.zeros(n * m)
+
+    max_iter = 50
+    
+    minimum = opt.minimize(f, x0, jac=grad_f, options={'maxiter':max_iter}, method='CG')
+    return minimum.x.reshape((n, m))
+
 def blur_picture(picture, k):
     # Generate noise
     s = 0.004
@@ -18,11 +32,19 @@ def blur_picture(picture, k):
     # Blur and add noise
     return helpers.A(picture, k) + noise
 
-def naive_deblur(blurred, n, m, k):
+
+def fReg(x, a, b, lamb=1.5):
+  return (1/2) * (np.linalg.norm(helpers.A(x, a)-b)) ** 2 + (1/2) * lamb * np.linalg.norm(x) ** 2
+
+def gradReg(x, a, b, lamb=1.5):
+  return helpers.AT(helpers.A(x, a), a) - helpers.AT(b, a) + lamb * x
+
+def regular_deblur(blurred, n, m, k, x=1.5):
     # Function to minimize
-    f = lambda x: lstsq(x.reshape(n, m), k, blurred)
+    lamb = 1.5
+    f = lambda x: fReg(x.reshape(n, m), k, blurred, lamb)
     # Gradient of f
-    grad_f = lambda x: grad(x.reshape(n, m), k, blurred).reshape(n * m)
+    grad_f = lambda x: gradReg(x.reshape(n, m), k, blurred, lamb).reshape(n * m)
 
     # Initial guess
     x0 = np.zeros(n * m)
@@ -55,6 +77,9 @@ def elaborate_datasource(image_path, sigma, ker_len):
     plt.show()
 
     # Add here code for phase 3
+    deblurred3 = regular_deblur(blurred, n, m, k)
+    plt.imshow(deblurred3, cmap='gray') 
+    plt.show()
 
 
 
