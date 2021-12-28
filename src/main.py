@@ -4,17 +4,20 @@ import scipy.optimize as opt
 import numpy as np
 from skimage import data, metrics
 
+def lstsq(x, a, b):
+    return (1/2) * np.linalg.norm(helpers.A(x, a) - b) ** 2
+
 def grad(x, a, b):
     return helpers.AT(helpers.A(x, a), a) - helpers.AT(b, a)
 
-def lstsq(x, a, b):
-    return (1/2) * np.linalg.norm(helpers.A(x, a) - b) ** 2
 
 def blur_datasource(image_path, sigma, ker_len):
     # Open the image as a matrix and show it
     picture = plt.imread(image_path) 
     picture = picture[:, : , 0]
     n, m = picture.shape
+    plt.imshow(picture, cmap='gray') 
+    plt.show()
 
     # Get the kernel
     kernel = helpers.gaussian_kernel(ker_len, sigma)
@@ -28,8 +31,8 @@ def blur_datasource(image_path, sigma, ker_len):
     
     # Blur, add noise and show
     blurred = helpers.A(picture, k) + noise
-    # plt.imshow(blurred, cmap='gray') 
-    # plt.show()
+    plt.imshow(blurred, cmap='gray') 
+    plt.show()
 
     # Reshape
     picture_vec = picture.reshape(n * m)
@@ -37,8 +40,8 @@ def blur_datasource(image_path, sigma, ker_len):
     blurred_vec = blurred.reshape(n * m)
 
     f = lambda x: lstsq(x.reshape(n, m), k, blurred)
-    f_grad = lambda x: grad(x.reshape(n, m), k, blurred)
-   
+    f_grad = lambda x: grad(x.reshape(n, m), k, blurred).reshape(n * m)
+
     x0 = np.zeros(n * m)
     max_iter = 50
     minimum = opt.minimize(f, x0, jac=f_grad, options={'maxiter':max_iter}, method='CG')
@@ -52,7 +55,7 @@ def blur_datasource(image_path, sigma, ker_len):
 
 
 def main():
-    ds1 = './datasource/one.png'
+    ds1 = './datasource/six.png'
 
     # TODO: add gaussian rumor between ]0; 0,05]
     # b1_ds1 = blur_datasource(ds1, 0.5, 5)
