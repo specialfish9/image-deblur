@@ -5,7 +5,7 @@ import numpy as np
 from skimage import data, metrics
 
 def lstsq(x, a, b):
-    return (1/2) * np.linalg.norm(np.dot(a, x) - b) ** 2
+    return (1/2) * np.linalg.norm(helpers.A(x, a) - b) ** 2
 
 def grad(x, a, b):
     return np.dot(a.T, np.dot(a,x)) - np.dot(a.T, b)
@@ -14,14 +14,13 @@ def blur_datasource(image_path, sigma, ker_len):
     # Open the image as a matrix and show it
     picture = plt.imread(image_path) 
     picture = picture[:, : , 0]
-    #picture = data.camera().astype(np.float64) / 255.0 
     n, m = picture.shape
 
     # Get the kernel
     kernel = helpers.gaussian_kernel(ker_len, sigma)
 
     # Apply Fourier
-    k = np.real(helpers.psf_fft(kernel, ker_len, (n, m)))
+    k = helpers.psf_fft(kernel, ker_len, (n, m))
 
     # Generate noise
     s = 0.004
@@ -38,11 +37,11 @@ def blur_datasource(image_path, sigma, ker_len):
     blurred_vec = blurred.reshape(n * m)
 
     f = lambda x: lstsq(x, k_vec, blurred_vec)
-    grad_f = lambda x: grad(x, k_vec, blurred_vec)
-
+   
     x0 = np.zeros(n * m)
-
-    minimum = opt.minimize(f, x0, method='CG')
+    max_iter = 50
+    minimum = opt.minimize(f, x0, options={'maxiter':max_iter}, method='CG')
+   
     deblurred = minimum.x.reshape((n, m))
 
     plt.imshow(deblurred, cmap='gray') 
@@ -52,7 +51,7 @@ def blur_datasource(image_path, sigma, ker_len):
 
 
 def main():
-    ds1 = './datasource/e1.png'
+    ds1 = './datasource/one.png'
 
     # TODO: add gaussian rumor between ]0; 0,05]
     # b1_ds1 = blur_datasource(ds1, 0.5, 5)
