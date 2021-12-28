@@ -4,11 +4,11 @@ import scipy.optimize as opt
 import numpy as np
 from skimage import data, metrics
 
+def grad(x, a, b):
+    return helpers.AT(helpers.A(x, a), a) - helpers.AT(b, a)
+
 def lstsq(x, a, b):
     return (1/2) * np.linalg.norm(helpers.A(x, a) - b) ** 2
-
-def grad(x, a, b):
-    return np.dot(a.T, np.dot(a,x)) - np.dot(a.T, b)
 
 def blur_datasource(image_path, sigma, ker_len):
     # Open the image as a matrix and show it
@@ -36,11 +36,12 @@ def blur_datasource(image_path, sigma, ker_len):
     k_vec = k.reshape(n * m)
     blurred_vec = blurred.reshape(n * m)
 
-    f = lambda x: lstsq(x, k_vec, blurred_vec)
+    f = lambda x: lstsq(x.reshape(n, m), k, blurred)
+    f_grad = lambda x: grad(x.reshape(n, m), k, blurred)
    
     x0 = np.zeros(n * m)
     max_iter = 50
-    minimum = opt.minimize(f, x0, options={'maxiter':max_iter}, method='CG')
+    minimum = opt.minimize(f, x0, jac=f_grad, options={'maxiter':max_iter}, method='CG')
    
     deblurred = minimum.x.reshape((n, m))
 
