@@ -10,8 +10,29 @@ def lstsq(x, a, b):
 def grad(x, a, b):
     return helpers.AT(helpers.A(x, a), a) - helpers.AT(b, a)
 
+def blur_picture(picture, k):
+    # Generate noise
+    s = 0.004
+    noise = np.random.normal(size=picture.shape) * s
+    
+    # Blur and add noise
+    return helpers.A(picture, k) + noise
 
-def blur_datasource(image_path, sigma, ker_len):
+def naive_deblur(blurred, n, m, k):
+    # Function to minimize
+    f = lambda x: lstsq(x.reshape(n, m), k, blurred)
+    # Gradient of f
+    grad_f = lambda x: grad(x.reshape(n, m), k, blurred).reshape(n * m)
+
+    # Initial guess
+    x0 = np.zeros(n * m)
+
+    max_iter = 50
+    
+    minimum = opt.minimize(f, x0, jac=grad_f, options={'maxiter':max_iter}, method='CG')
+    return minimum.x.reshape((n, m))
+
+def elaborate_datasource(image_path, sigma, ker_len):
     # Open the image as a matrix and show it
     picture = plt.imread(image_path) 
     picture = picture[:, : , 0]
@@ -19,50 +40,30 @@ def blur_datasource(image_path, sigma, ker_len):
     plt.imshow(picture, cmap='gray') 
     plt.show()
 
-    # Get the kernel
+    # Create the kernel
     kernel = helpers.gaussian_kernel(ker_len, sigma)
-
-    # Apply Fourier
     k = helpers.psf_fft(kernel, ker_len, (n, m))
 
-    # Generate noise
-    s = 0.004
-    noise = np.random.normal(size=picture.shape) * s
-    
-    # Blur, add noise and show
-    blurred = helpers.A(picture, k) + noise
+    # Phase 1: blur
+    blurred = blur_picture(picture, k)
     plt.imshow(blurred, cmap='gray') 
     plt.show()
 
-    # Reshape
-    picture_vec = picture.reshape(n * m)
-    k_vec = k.reshape(n * m)
-    blurred_vec = blurred.reshape(n * m)
-
-    f = lambda x: lstsq(x.reshape(n, m), k, blurred)
-    f_grad = lambda x: grad(x.reshape(n, m), k, blurred).reshape(n * m)
-
-    x0 = np.zeros(n * m)
-    max_iter = 50
-    minimum = opt.minimize(f, x0, jac=f_grad, options={'maxiter':max_iter}, method='CG')
-   
-    deblurred = minimum.x.reshape((n, m))
-
+    # Phase 2: naive solution
+    deblurred = naive_deblur(blurred, n, m, k)
     plt.imshow(deblurred, cmap='gray') 
     plt.show()
 
-    return blurred
+    # Add here code for phase 3
+
 
 
 def main():
     ds1 = './datasource/six.png'
 
-    # TODO: add gaussian rumor between ]0; 0,05]
-    # b1_ds1 = blur_datasource(ds1, 0.5, 5)
-    # b2_ds1 = blur_datasource(ds1, 1, 7)
-    b3_ds1 = blur_datasource(ds1, 1.3, 9)
-    
-    # Add here calls to phase2
+    # b1_ds1 = elaborate_datasource(ds1, 0.5, 5)
+    # b2_ds1 = elaborate_datasource(ds1, 1, 7)
+    b3_ds1 = elaborate_datasource(ds1, 1.3, 9)
 
 
 if __name__ == "__main__":
