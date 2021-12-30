@@ -60,7 +60,7 @@ def regular_deblur_cg(blurred, n, m, k, x=1.5):
     minimum = opt.minimize(f, x0, jac=grad_f, options={'maxiter':max_iter}, method='CG')
     return minimum.x.reshape((n, m))
 
-def get_alpha(x, f, grad):
+def get_alpha(x, f, grad, n, m):
   """
     x -> current x_k (immutable)
     f -> target function
@@ -72,11 +72,20 @@ def get_alpha(x, f, grad):
   p=-grad
   j=0
   jmax=10
-  while ((f(x + alpha*p) > f(x) +c1 * alpha * grad.T @ p) and j < jmax ):
-    if (j > jmax):
-        return -1
-    else:
-        return alpha
+  m1 = 1
+  m2 = 0
+  m3 = 0
+  while(m1 > m2 + m3) and j < jmax :
+    alpha = rho * alpha
+    j += 1
+    m1 = f(x.reshape(n, m) + alpha*p)
+    m2 =  f(x.reshape(n , m))
+    m3 = c1 * alpha * grad.T @ p
+
+  if (j > jmax):
+    return -1
+  else:
+    return alpha
 
 def regular_deblur_gradient(blurred, n, m, k, MAXITERATION=50, ABSOLUTE_STOP=1.e-5):
   """
@@ -112,7 +121,7 @@ def regular_deblur_gradient(blurred, n, m, k, MAXITERATION=50, ABSOLUTE_STOP=1.e
   while (np.linalg.norm(grad_f(x_last))>ABSOLUTE_STOP and k < MAXITERATION ):
     k += 1
     grad = grad_f(x_last)
-    step = get_alpha(x_last, f, grad)
+    step = get_alpha(x_last, f, grad, n, m)
     
     if(step==-1):
       return None # no convergence
