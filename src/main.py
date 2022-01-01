@@ -15,7 +15,6 @@ def show_images(*pic):
         plt.imshow(pic[i])
     plt.show()
 
-
 def naive_deblur(blurred, n, m, k):
     # Function to minimize
     f = lambda x: lstsq(x.reshape(n, m), k, blurred)
@@ -80,14 +79,14 @@ def get_alpha(x, f, grad, n, m):
     j += 1
     m1 = f(x.reshape(n, m) + alpha*p)
     m2 =  f(x.reshape(n , m))
-    m3 = c1 * alpha * grad.T @ p
+    m3 = c1 * alpha * (grad.reshape(n * m).T @ p.reshape(n * m))
 
   if (j > jmax):
     return -1
   else:
     return alpha
 
-def regular_deblur_gradient(blurred, n, m, k, MAXITERATION=50, ABSOLUTE_STOP=1.e-5):
+def regular_deblur_gradient(blurred, n, m, ker, MAXITERATION=50, ABSOLUTE_STOP=1.e-5):
   """
     k -> kernel
     blurred -> blurred image
@@ -96,69 +95,28 @@ def regular_deblur_gradient(blurred, n, m, k, MAXITERATION=50, ABSOLUTE_STOP=1.e
     MAXITERATION -> maximum number of iteration
     ABSOLUTE_STOP -> limit 
   """
-
-  #declare x_k and gradient_k vectors
-  x=np.zeros((1, MAXITERATION))
-  norm_grad_list=np.zeros((1, MAXITERATION))
-  function_eval_list=np.zeros((1, MAXITERATION))
-  error_list=np.zeros((1, MAXITERATION))
   
   #initialize first values
   x_last = np.zeros(n * m)
   x_last[0] = 1
-  #x[:,0] = x_last
-
-  step = 0
-  k=0
+  alpha = 0
+  k = 0
   
-  f = lambda x: f_reg(x.reshape(n, m), k, blurred)
-  grad_f = lambda x: grad_reg(x.reshape(n, m), k, blurred)
+  f = lambda x: f_reg(x.reshape(n, m), ker, blurred)
+  grad_f = lambda x: grad_reg(x.reshape(n, m), ker, blurred)
 
-  function_eval_list[:, 0] = f(x_last)
-  #error_list[:, 0] = np.linalg.norm(x_last - b)
-  norm_grad_list[:, 0] = np.linalg.norm(grad_f(x_last))
-
-  while (np.linalg.norm(grad_f(x_last))>ABSOLUTE_STOP and k < MAXITERATION ):
+  while np.linalg.norm(grad_f(x_last)) > ABSOLUTE_STOP and k < MAXITERATION:
     k += 1
     grad = grad_f(x_last)
-    step = get_alpha(x_last, f, grad, n, m)
+    alpha = get_alpha(x_last, f, grad, n, m)
     
-    if(step==-1):
-      return None # no convergence
+    if(alpha == -1):
+      print("No convergence")
+      return None 
+      
+    x_last = x_last - alpha * grad.reshape(n * m)
 
-    # x_k+1 = x_k - alpha_k * Grad(x_k)
-    x_last = x_last - step * grad;
-
-    # x[k] = x_last
-
-    # function_eval_list[:,k] = f_reg(x_last)
-    # # error_list[:,k] = np.linalg.norm(x_last-b)
-    # norm_grad_list[:,k] = np.linalg.norm(grad_f(x_last))
-    # function_eval_list = function_eval_list[:,:k+1]
-    # # error_list = error_list[:,:k+1]
-    # norm_grad_list = norm_grad_list[:,:k+1]
-  
- 
-    # #plots
-    # v_x0 = np.linspace(-5,5,500)
-    # v_x1 = np.linspace(-5,5,500)
-    # x0v,x1v = np.meshgrid(v_x0,v_x1)
-    # z = f(x0v,x1v,b)
-
-    # plt.figure()
-    # ax = plt.axes(projection='3d')
-    # ax.plot_surface(v_x0, v_x1, z,cmap='viridis')
-    # ax.set_title('Surface plot')
-    # plt.show()
-
-    # # plt.figure(figsize=(8, 5))
-    # contours = plt.contour(x0v, x1v, z, levels=30)
-    # plt.plot(x[0,0:k],x[1,0:k],'*')
-    # #plt.axis([-5,5,-5,5])
-    # plt.axis ('equal')
-    # plt.show()
-  print(x_last, f(x_last))
-  return f(x_last)
+  return x_last.reshape(n, m)
 
 
 def elaborate_datasource(image_path, sigma, ker_len):
@@ -166,8 +124,8 @@ def elaborate_datasource(image_path, sigma, ker_len):
     picture = plt.imread(image_path) 
     picture = picture[:, : , 0]
     n, m = picture.shape
-    # plt.imshow(picture, cmap='gray') 
-    # plt.show()
+    plt.imshow(picture, cmap='gray') 
+    plt.show()
 
     # Create the kernel
     kernel = helpers.gaussian_kernel(ker_len, sigma)
@@ -176,20 +134,19 @@ def elaborate_datasource(image_path, sigma, ker_len):
     # Phase 1: blur
     blurred = blur_picture(picture, k)
     plt.imshow(blurred, cmap='gray') 
-    # plt.show()
-
-    show_images(picture, blurred)
+    plt.show()
 
     # Phase 2: naive solution
     deblurred = naive_deblur(blurred, n, m, k)
     plt.imshow(deblurred, cmap='gray') 
-    # plt.show()
+    plt.show()
 
-    # Phase 3: regular solution
-    # deblurred_gc = regular_deblur_cg(blurred, n, m, k)
-    # plt.imshow(deblurred_gc, cmap='gray') 
-    # plt.show()
+    # Phase 3.1: regular solution with conjugate gradient
+    deblurred_gc = regular_deblur_cg(blurred, n, m, k)
+    plt.imshow(deblurred_gc, cmap='gray') 
+    plt.show()
 
+    # Phase 3.2: regular solution with gradient
     deblurred_gradient = regular_deblur_gradient(blurred, n, m, k)
     if deblurred_gradient is not None:
         plt.imshow(deblurred_gradient, cmap='gray') 
