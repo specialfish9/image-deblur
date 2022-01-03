@@ -32,10 +32,30 @@ def grad_reg(x, a, b, lamb=1.5):
 
     return grad(x, a, b) + lamb * x
 
+def total_variation(u, n, m, eps=0.01):
+    gradient=0
+    for i in range(n): 
+        for j in range(m):
+            gradient+= np.sqrt(np.linalg.norm(np.gradient(u)[i][j])**2 +eps**2)      
+    return gradient
+
+def lstsq_totvar(x, a, b, n, m, eps=0.01, lamb=1.5):
+    print(len(x))
+    return lstsq(x, a, b)+lamb*total_variation(x, n, m, eps)
+
+def div(f):
+    g= np.gradient(f)
+    return g[0]+g[1]
+
+def grad_totvar(u, eps=0.01):
+    return -div(np.gradient(u)/np.sqrt(np.linalg.norm(np.gradient(u))**2)+eps**2)
+
+def grad_lstsq_totvar(x, a, b, eps=0.01, lamb=1.5):
+    return grad(x, a, b)+lamb*grad_totvar(x, eps)
 
 def blur_picture(picture, k, s=0.004):
     """
-    Blur a picture using gaussian-Blur and gaussian noise
+    Blur a picture using gaussian-blur and gaussian noise
     @param picture: Original picture
     @param k: Kernel matrix
     @param s: Standard deviation of gaussian noise
@@ -122,6 +142,24 @@ def next_step(x, f, grad_x, n, m):
     else:
         return alpha
 
+def gradient_descend(f, n, m, grad_f, x0, max_iter=50, absolute_stop=1.e-5):
+     
+    k = 0
+
+    while np.linalg.norm(grad_f(x0)) > absolute_stop and k < max_iter:
+        print(k)
+        k += 1
+        gradient = grad_f(x0)
+        alpha = next_step(x0, f, gradient, n, m)
+
+        if alpha == -1:
+            print("No convergence")
+            return None
+    
+        x0 = x0 - alpha * gradient.reshape(n * m)
+    
+    return x0.reshape(n, m)
+
 
 def regular_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5):
     """
@@ -132,30 +170,34 @@ def regular_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5
       @param ker: Gaussian kernel matrix
       @param max_iter: Maximum number of iterations
       @param absolute_stop: Absolute stop value
-      @return:
+      @return: De-blurred image
     """
 
     # initialize first values
-    x_last = np.zeros(n * m)
-    x_last[0] = 1
-    k = 0
+    x0 = np.zeros(n * m)
+    x0[0] = 1
 
     f = lambda x: lstsq_reg(x.reshape(n, m), ker, blurred)
     grad_f = lambda x: grad_reg(x.reshape(n, m), ker, blurred)
+    return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
 
-    while np.linalg.norm(grad_f(x_last)) > absolute_stop and k < max_iter:
-        k += 1
-        gradient = grad_f(x_last)
-        alpha = next_step(x_last, f, gradient, n, m)
-
-        if alpha == -1:
-            print("No convergence")
-            return None
-
-        x_last = x_last - alpha * gradient.reshape(n * m)
-
-    return x_last.reshape(n, m)
-
+def regular_deblur_totvar(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5):
+    """
+      Deblur an image using Gradient Descend method with total variation
+      @param blurred: Blurred image
+      @param n: Width
+      @param m: Height
+      @param ker: Gaussian kernel matrix
+      @param max_iter: Maximum number of iterations
+      @param absolute_stop: Absolute stop value
+      @return: De-blurred image
+    """
+    x0 = np.zeros(n * m)
+    x0[0] = 1
+    erik=x0.reshape(n,m)
+    f= lambda x: lstsq_totvar(x.reshape(n, m), ker, blurred, n, m, 0.01, 1.5)
+    grad_f= lambda x: grad_lstsq_totvar(x.reshape(n ,m), ker, blurred)
+    return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
 
 def elaborate_datasource(image_path, sigma, ker_len):
     """
@@ -168,8 +210,8 @@ def elaborate_datasource(image_path, sigma, ker_len):
     picture = plt.imread(image_path)
     picture = picture[:, :, 0]
     n, m = picture.shape
-    plt.imshow(picture, cmap='gray')
-    plt.show()
+    #plt.imshow(picture, cmap='gray')
+    #plt.show()
 
     # Create the kernel
     kernel = helpers.gaussian_kernel(ker_len, sigma)
@@ -177,9 +219,9 @@ def elaborate_datasource(image_path, sigma, ker_len):
 
     # Phase 1: blur
     blurred = blur_picture(picture, k)
-    plt.imshow(blurred, cmap='gray')
-    plt.show()
-
+    #plt.imshow(blurred, cmap='gray')
+    #plt.show()
+    """
     # Phase 2: naive solution
     deblurred = naive_deblur(blurred, n, m, k)
     plt.imshow(deblurred, cmap='gray')
@@ -195,14 +237,19 @@ def elaborate_datasource(image_path, sigma, ker_len):
     if deblurred_gradient is not None:
         plt.imshow(deblurred_gradient, cmap='gray')
         plt.show()
-
+    """
+    # Phase 4: regular solution with gradient and total variation
+    deblurred_totvar = regular_deblur_totvar(blurred, n, m, k)
+    if deblurred_totvar is not None:
+        plt.imshow(deblurred_totvar, cmap='gray')
+        plt.show()
 
 def main():
     ds1 = './datasource/six.png'
 
     elaborate_datasource(ds1, 0.5, 5)
-    elaborate_datasource(ds1, 1, 7)
-    elaborate_datasource(ds1, 1.3, 9)
+   # elaborate_datasource(ds1, 1, 7)
+   # elaborate_datasource(ds1, 1.3, 9)
 
 
 if __name__ == "__main__":
