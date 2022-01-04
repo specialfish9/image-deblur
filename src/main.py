@@ -252,7 +252,7 @@ def elaborate_datasource(image_path, sigma, ker_len):
 
 
 def main():
-    ds1 = '../datasource/six.png'
+    ds1 = './datasource/six.png'
 
     elaborate_datasource(ds1, 0.5, 5)
     elaborate_datasource(ds1, 1, 7)
