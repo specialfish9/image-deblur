@@ -198,7 +198,7 @@ def gradient_descend(f, n, m, grad_f, x0, max_iter=50, absolute_stop=1.e-5):
     return x0.reshape(n, m)
 
 
-def regularized_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5):
+def regularized_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5, lamb=1.5):
     """
       Deblur an image using Gradient Descend method
       @param blurred: Blurred image
@@ -214,12 +214,12 @@ def regularized_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1
     x0 = np.zeros(n * m)
     x0[0] = 1
 
-    f = lambda x: lstsq_tikhonov(x.reshape(n, m), ker, blurred)
+    f = lambda x: lstsq_tikhonov(x.reshape(n, m), ker, blurred, lamb)
     grad_f = lambda x: lstsq_tikhonov_grad(x.reshape(n, m), ker, blurred)
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
 
 
-def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5):
+def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5, lamb=1.5):
     """
       Deblur an image using Gradient Descend method with total variation
       @param blurred: Blurred image
@@ -228,15 +228,26 @@ def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.
       @param ker: Gaussian kernel matrix
       @param max_iter: Maximum number of iterations
       @param absolute_stop: Absolute stop value
+      @param lamb: regularization term
       @return: De-blurred image
     """
     x0 = np.zeros(n * m)
     x0[0] = 1
 
-    f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred)
+    f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred, lamb)
     grad_f = lambda x: lstsq_tot_var_grad(x.reshape(n, m), ker, blurred)
 
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
+
+
+def print_res(original, deblurred, time):
+    from skimage import metrics
+
+    psnr = metrics.peak_signal_noise_ratio(original, deblurred)
+    mse = metrics.mean_squared_error(original, deblurred)
+    print('This is the mse: ', mse)
+    print('This is the psnr: ', psnr)
+    print('This is the time: ', time)
 
 
 def elaborate_datasource(image_path, sigma, ker_len):
@@ -246,50 +257,90 @@ def elaborate_datasource(image_path, sigma, ker_len):
     @param sigma: Blur operator
     @param ker_len: Gaussian kernel length
     """
-    from matplotlib.pyplot import imshow, imread, show
+    from matplotlib import pyplot as plt
     from helpers import gaussian_kernel, psf_fft
+    import time
+
+    fig = plt.figure(figsize=(15, 10))
+    rows = 2
+    columns = 3
 
     # Open the image as a matrix and show it
-    picture = imread(image_path)
+    picture = plt.imread(image_path)
     picture = picture[:, :, 0]
     n, m = picture.shape
-    imshow(picture, cmap='gray')
-    show()
+
+    fig.add_subplot(rows, columns, 1)
+    plt.imshow(picture, cmap='gray')
+    plt.axis("off")
+    plt.title("Original")
 
     # Create the kernel
     kernel = gaussian_kernel(ker_len, sigma)
     k = psf_fft(kernel, ker_len, (n, m))
 
     # Phase 1: blur
+    print("Phase 1")
     blurred = blur_picture(picture, k)
-    imshow(blurred, cmap='gray')
-    show()
+
+    fig.add_subplot(rows, columns, 2)
+    plt.imshow(blurred, cmap='gray')
+    plt.axis("off")
+    plt.title("Blurred")
+
+    start = time.time()
 
     # Phase 2: naive solution
-    deblurred = naive_deblur(blurred, n, m, k)
-    imshow(deblurred, cmap='gray')
-    show()
+    print("Phase 2")
+    deblurred_naive = naive_deblur(blurred, n, m, k)
+    t_2 = time.time()
+    print_res(picture, deblurred_naive, t_2 - start)
+
+    fig.add_subplot(rows, columns, 3)
+    plt.imshow(deblurred_naive, cmap='gray')
+    plt.axis("off")
+    plt.title("Naive")
 
     # Phase 3.1: solution with conjugate gradient method and Tikhonov regularization
-    deblurred_gc = regularized_deblur_cg(blurred, n, m, k)
-    imshow(deblurred_gc, cmap='gray')
-    show()
+    print("Phase 3.1")
+    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb=1e-5)
+    t_31 = time.time()
+    print_res(picture, deblurred_gc, t_31 - t_2)
+
+    fig.add_subplot(rows, columns, 4)
+    plt.imshow(deblurred_gc, cmap='gray')
+    plt.axis("off")
+    plt.title("CG Tikhonov")
 
     # Phase 3.2: solution with gradient descend and Tikhonov regularization
-    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k)
+    print("Phase 3.2")
+    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb=1e-5)
+    t_32 = time.time()
+
     if deblurred_gradient is not None:
-        imshow(deblurred_gradient, cmap='gray')
-        show()
+        print_res(picture, deblurred_gradient, t_32 - t_31)
+        fig.add_subplot(rows, columns, 5)
+        plt.imshow(deblurred_gradient, cmap='gray')
+        plt.axis("off")
+        plt.title("GD Tikhonov")
 
     # Phase 4: solution with gradient descend and total variation regularization
-    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k)
+    print("Phase 4")
+    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb=1e-15)
+    t_4 = time.time()
+
     if deblurred_tot_var is not None:
-        imshow(deblurred_tot_var, cmap='gray')
-        show()
+        print_res(picture, deblurred_tot_var, t_4 - t_32)
+        fig.add_subplot(rows, columns, 6)
+        plt.imshow(deblurred_tot_var, cmap='gray')
+        plt.axis("off")
+        plt.title("GD Tot Var")
+
+    plt.show()
 
 
 def main():
-    ds1 = './datasource/six.png'
+    ds1 = '../datasource/e6.webp'
 
     elaborate_datasource(ds1, 0.5, 5)
     elaborate_datasource(ds1, 1, 7)
