@@ -233,7 +233,7 @@ def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.
     x0 = np.zeros(n * m)
     x0[0] = 1
 
-    f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred, 0.01, 1.5)
+    f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred)
     grad_f = lambda x: lstsq_tot_var_grad(x.reshape(n, m), ker, blurred)
 
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
@@ -282,7 +282,7 @@ def elaborate_datasource(image_path, sigma, ker_len):
         show()
 
     # Phase 4: solution with gradient descend and total variation regularization
-    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, max_iter=1)
+    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k)
     if deblurred_tot_var is not None:
         imshow(deblurred_tot_var, cmap='gray')
         show()
