@@ -49,12 +49,49 @@ def div(f):
     return np.gradient(f, axis=0)[0] + np.gradient(f, axis=1)[1]  # TODO
 
 
-def tot_var_grad(u, eps=0.01):
-    """
-    Total variation gradient
-    """
-    return -div(np.gradient(u) / np.sqrt(np.linalg.norm(np.gradient(u)) ** 2 + eps ** 2)) @ u
+# Variazione totale
+def totvar(x, eps=1e-2):
+  # Calcola il gradiente di x
+  dx, dy = np.gradient(x)
+  n2 = np.square(dx) + np.square(dy)
 
+  # Calcola la variazione totale di x
+  tv = np.sqrt(n2 + eps**2).sum()
+  return tv
+
+
+# Gradiente della variazione totale
+def grad_totvar(x, eps=1e-2):
+  # Calcola il numeratore della frazione
+  dx, dy = np.gradient(x)
+
+  # Calcola il denominatore della frazione
+  n2 = np.square(dx) + np.square(dy)
+  den = np.sqrt(n2 + eps**2)
+
+  # Calcola le due componenti di F dividendo il gradiente per il denominatore
+  Fx = dx / den
+  Fy = dy / den
+
+  # Calcola la derivata orizzontale di Fx 
+  dFdx = np.gradient(Fx, axis=0)
+  
+  # Calcola la derivata verticale di Fy
+  dFdy = np.gradient(Fy, axis=1)
+
+  # Calcola la divergenza 
+  div = (dFdx + dFdy)
+
+  # Restituisci il valore del gradiente della variazione totale
+  return -div
+
+
+#def tot_var_grad(u, eps=0.01):
+#    """
+#    Total variation gradient
+#    """
+#    return -div(np.gradient(u) / np.sqrt(np.linalg.norm(np.gradient(u)) ** 2 + eps ** 2)) @ u
+#
 
 def lstsq_tot_var(x, a, b, n, m, eps=0.01, lamb=1.5):
     """
