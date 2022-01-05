@@ -33,74 +33,44 @@ def lstsq_tikhonov_grad(x, a, b, lamb=1.5):
     return lstsq_grad(x, a, b) + lamb * x
 
 
-def total_variation(u, n, m, eps=0.01):
+def total_variation(u, eps=1e-2):
     """
     Total Variation formula implementation
     """
-    gradient = 0
-    for i in range(n):
-        for j in range(m):
-            gradient += np.sqrt(
-                np.linalg.norm(np.gradient(u, axis=0)[0][i] + np.gradient(u, axis=1)[1][j]) ** 2 + eps ** 2)
-    return gradient
+    dx, dy = np.gradient(u)
+    n2 = np.square(dx) + np.square(dy)
+
+    return np.sqrt(n2 + eps ** 2).sum()
 
 
-def div(f):
-    return np.gradient(f, axis=0)[0] + np.gradient(f, axis=1)[1]  # TODO
+def tot_var_grad(u, eps=1e-2):
+    """
+    Total variation gradient
+    """
+    dx, dy = np.gradient(u)
+
+    n2 = np.square(dx) + np.square(dy)
+    den = np.sqrt(n2 + eps ** 2)
+
+    Fx = dx / den
+    Fy = dy / den
+
+    dFdx = np.gradient(Fx, axis=0)
+    dFdy = np.gradient(Fy, axis=1)
+
+    div = (dFdx + dFdy)
+
+    return -div
 
 
-# Variazione totale
-def totvar(x, eps=1e-2):
-  # Calcola il gradiente di x
-  dx, dy = np.gradient(x)
-  n2 = np.square(dx) + np.square(dy)
-
-  # Calcola la variazione totale di x
-  tv = np.sqrt(n2 + eps**2).sum()
-  return tv
-
-
-# Gradiente della variazione totale
-def grad_totvar(x, eps=1e-2):
-  # Calcola il numeratore della frazione
-  dx, dy = np.gradient(x)
-
-  # Calcola il denominatore della frazione
-  n2 = np.square(dx) + np.square(dy)
-  den = np.sqrt(n2 + eps**2)
-
-  # Calcola le due componenti di F dividendo il gradiente per il denominatore
-  Fx = dx / den
-  Fy = dy / den
-
-  # Calcola la derivata orizzontale di Fx 
-  dFdx = np.gradient(Fx, axis=0)
-  
-  # Calcola la derivata verticale di Fy
-  dFdy = np.gradient(Fy, axis=1)
-
-  # Calcola la divergenza 
-  div = (dFdx + dFdy)
-
-  # Restituisci il valore del gradiente della variazione totale
-  return -div
-
-
-#def tot_var_grad(u, eps=0.01):
-#    """
-#    Total variation gradient
-#    """
-#    return -div(np.gradient(u) / np.sqrt(np.linalg.norm(np.gradient(u)) ** 2 + eps ** 2)) @ u
-#
-
-def lstsq_tot_var(x, a, b, n, m, eps=0.01, lamb=1.5):
+def lstsq_tot_var(x, a, b, eps=1e-2, lamb=1.5):
     """
     lstsq with total variation regularization
     """
-    return lstsq(x, a, b) + lamb * total_variation(x, n, m, eps)
+    return lstsq(x, a, b) + lamb * total_variation(x, eps)
 
 
-def lstsq_tot_var_grad(x, a, b, eps=0.01, lamb=1.5):
+def lstsq_tot_var_grad(x, a, b, eps=1e-2, lamb=1.5):
     """
     lstsq gradient with total variation regularization
     """
@@ -263,7 +233,7 @@ def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.
     x0 = np.zeros(n * m)
     x0[0] = 1
 
-    f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred, n, m, 0.01, 1.5)
+    f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred, 0.01, 1.5)
     grad_f = lambda x: lstsq_tot_var_grad(x.reshape(n, m), ker, blurred)
 
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
