@@ -19,14 +19,14 @@ def lstsq_grad(x, a, b):
     return AT(A(x, a), a) - AT(b, a)
 
 
-def lstsq_tikhonov(x, a, b, lamb=1.5):
+def lstsq_tikhonov(x, a, b, lamb):
     """
     lstsq with Tikhonov regularization
     """
     return lstsq(x, a, b) + (1 / 2) * lamb * np.linalg.norm(x) ** 2
 
 
-def lstsq_tikhonov_grad(x, a, b, lamb=1.5):
+def lstsq_tikhonov_grad(x, a, b, lamb):
     """
     least-squares gradient with Tikhonov regularization
     """
@@ -52,25 +52,25 @@ def tot_var_grad(u, eps=1e-2):
     n2 = np.square(dx) + np.square(dy)
     den = np.sqrt(n2 + eps ** 2)
 
-    Fx = dx / den
-    Fy = dy / den
+    fx = dx / den
+    fy = dy / den
 
-    dFdx = np.gradient(Fx, axis=0)
-    dFdy = np.gradient(Fy, axis=1)
+    d_fdx = np.gradient(fx, axis=0)
+    d_fdy = np.gradient(fy, axis=1)
 
-    div = (dFdx + dFdy)
+    div = (d_fdx + d_fdy)
 
     return -div
 
 
-def lstsq_tot_var(x, a, b, eps=1e-2, lamb=1.5):
+def lstsq_tot_var(x, a, b, lamb, eps=1e-2):
     """
     lstsq with total variation regularization
     """
     return lstsq(x, a, b) + lamb * total_variation(x, eps)
 
 
-def lstsq_tot_var_grad(x, a, b, eps=1e-2, lamb=1.5):
+def lstsq_tot_var_grad(x, a, b, lamb, eps=1e-2):
     """
     lstsq gradient with total variation regularization
     """
@@ -118,14 +118,14 @@ def naive_deblur(blurred, n, m, k, max_iter=50):
     return minimum.x.reshape((n, m))
 
 
-def regularized_deblur_cg(blurred, n, m, k, lamb=1.5, max_iter=50):
+def regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=50):
     """
     Deblur image finding the absolute minimum of lstsq  with Tikhonov regularization
     @param blurred: Image to de-blur
     @param n: Width
     @param m: Height
     @param k: Gaussian-kernel
-    @param lamb: regularization term
+    @param lamb: regularization parameter
     @param max_iter: Maximum number of iterations
     @return: De-blurred image
     """
@@ -198,7 +198,7 @@ def gradient_descend(f, n, m, grad_f, x0, max_iter=50, absolute_stop=1.e-5):
     return x0.reshape(n, m)
 
 
-def regularized_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5, lamb=1.5):
+def regularized_deblur_gradient(blurred, n, m, ker, lamb, max_iter=50, absolute_stop=1.e-5):
     """
       Deblur an image using Gradient Descend method
       @param blurred: Blurred image
@@ -207,6 +207,7 @@ def regularized_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1
       @param ker: Gaussian kernel matrix
       @param max_iter: Maximum number of iterations
       @param absolute_stop: Absolute stop value
+      @param lamb: Regularization parameter
       @return: De-blurred image
     """
 
@@ -215,11 +216,11 @@ def regularized_deblur_gradient(blurred, n, m, ker, max_iter=50, absolute_stop=1
     x0[0] = 1
 
     f = lambda x: lstsq_tikhonov(x.reshape(n, m), ker, blurred, lamb)
-    grad_f = lambda x: lstsq_tikhonov_grad(x.reshape(n, m), ker, blurred)
+    grad_f = lambda x: lstsq_tikhonov_grad(x.reshape(n, m), ker, blurred, lamb)
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
 
 
-def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.e-5, lamb=1.5):
+def regularized_deblur_tot_var(blurred, n, m, ker, lamb, max_iter=50, absolute_stop=1.e-5):
     """
       Deblur an image using Gradient Descend method with total variation
       @param blurred: Blurred image
@@ -228,14 +229,14 @@ def regularized_deblur_tot_var(blurred, n, m, ker, max_iter=50, absolute_stop=1.
       @param ker: Gaussian kernel matrix
       @param max_iter: Maximum number of iterations
       @param absolute_stop: Absolute stop value
-      @param lamb: regularization term
+      @param lamb: regularization parameter
       @return: De-blurred image
     """
     x0 = np.zeros(n * m)
     x0[0] = 1
 
     f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred, lamb)
-    grad_f = lambda x: lstsq_tot_var_grad(x.reshape(n, m), ker, blurred)
+    grad_f = lambda x: lstsq_tot_var_grad(x.reshape(n, m), ker, blurred, lamb)
 
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
 
@@ -250,12 +251,14 @@ def print_res(original, deblurred, time):
     print('This is the time: ', time)
 
 
-def elaborate_datasource(image_path, sigma, ker_len):
+def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
     """
     Given an image path first blur the image, then de-blur it using different methods
     @param image_path: Image path
     @param sigma: Blur operator
     @param ker_len: Gaussian kernel length
+    @param noise_std_dev: Standard deviation of noise
+    @param lamb: Regularization parameter
     """
     from matplotlib import pyplot as plt
     from helpers import gaussian_kernel, psf_fft
@@ -281,7 +284,7 @@ def elaborate_datasource(image_path, sigma, ker_len):
 
     # Phase 1: blur
     print("Phase 1")
-    blurred = blur_picture(picture, k)
+    blurred = blur_picture(picture, k, noise_std_dev)
 
     fig.add_subplot(rows, columns, 2)
     plt.imshow(blurred, cmap='gray')
@@ -303,7 +306,7 @@ def elaborate_datasource(image_path, sigma, ker_len):
 
     # Phase 3.1: solution with conjugate gradient method and Tikhonov regularization
     print("Phase 3.1")
-    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb=1e-5)
+    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
     t_31 = time.time()
     print_res(picture, deblurred_gc, t_31 - t_2)
 
@@ -314,7 +317,7 @@ def elaborate_datasource(image_path, sigma, ker_len):
 
     # Phase 3.2: solution with gradient descend and Tikhonov regularization
     print("Phase 3.2")
-    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb=1e-5)
+    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
     t_32 = time.time()
 
     if deblurred_gradient is not None:
@@ -326,7 +329,7 @@ def elaborate_datasource(image_path, sigma, ker_len):
 
     # Phase 4: solution with gradient descend and total variation regularization
     print("Phase 4")
-    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb=1e-15)
+    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
     t_4 = time.time()
 
     if deblurred_tot_var is not None:
