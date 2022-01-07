@@ -420,3 +420,4 @@ TSWLatexianTemp*
 # IDEs
 .vscode/
 .idea/
+test_output/

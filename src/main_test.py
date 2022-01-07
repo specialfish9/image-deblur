@@ -1,3 +1,5 @@
+import string
+
 import numpy as np
 
 
@@ -241,121 +243,174 @@ def regularized_deblur_tot_var(blurred, n, m, ker, lamb, max_iter=50, absolute_s
     return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
 
 
-def print_res(original, deblurred, time):
+def print_res(original, deblurred):
     from skimage import metrics
 
     psnr = metrics.peak_signal_noise_ratio(original, deblurred)
     mse = metrics.mean_squared_error(original, deblurred)
-    print('This is the mse: ', mse)
-    print('This is the psnr: ', psnr)
-    print('This is the time: ', time)
+
+    return psnr, mse
 
 
-def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5, show_pic=True):
-    """
-    Given an image path first blur the image, then de-blur it using different methods
-    @param image_path: Image path
-    @param sigma: Blur operator
-    @param ker_len: Gaussian kernel length
-    @param noise_std_dev: Standard deviation of noise
-    @param lamb: Regularization parameter
-    @param show_pic: Show pictures
-    """
-    from matplotlib import pyplot as plt
+def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
+    import matplotlib.pyplot as plt
     from helpers import gaussian_kernel, psf_fft
-    import time
 
-    fig = plt.figure(figsize=(15, 10))
-    rows = 2
-    columns = 3
-
-    # Open the image as a matrix and show it
     picture = plt.imread(image_path)
     picture = picture[:, :, 0]
     n, m = picture.shape
 
-    if show_pic:
-        fig.add_subplot(rows, columns, 1)
-        plt.imshow(picture, cmap='gray')
-        plt.axis("off")
-        plt.title("Original")
 
-    # Create the kernel
+    """
+    KERNEL DIM TEST
+    """
+    print("KERNEL DIM TEST\n")
+    file = open("test_output/ker_dim_test.csv", "w")
+    file.write("ker_dim,psnr,mse\n")
+
+    values = [
+        3,
+        5,
+        7,
+        9,
+        12,
+        50,
+        100,
+        300,
+        600
+    ]
+    
+    for i in values:
+        if n < i:
+            print("ERROR: image to small")
+            continue
+            
+        print(">iter:", i)
+        kernel = gaussian_kernel(i, sigma)
+        k = psf_fft(kernel, i, (n, m))
+
+        print("Phase 1")
+        blurred = blur_picture(picture, k, noise_std_dev)
+
+
+        print("Phase 2")
+        deblurred_naive = naive_deblur(blurred, n, m, k)
+        p, mmm = print_res(picture, deblurred_naive)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 3.1")
+        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_gc)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 3.2")
+        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_gradient)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 4")
+        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_tot_var)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+    file.close()
+
+    """
+    NOISE STD DEV TEST
+    """
+    print("NOISE STD DEV TEST\n")
+    file = open("test_output/noise_std_dev_test.csv", "w")
+    file.write("Std_dev,psnr,mse\n")
+
+    values = [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05
+    ]
+
+    for i in values:
+        kernel = gaussian_kernel(ker_len, sigma)
+        k = psf_fft(kernel, ker_len, (n, m))
+        print(">iter:", i)
+
+        print("Phase 1")
+        blurred = blur_picture(picture, k, i)
+
+        print("Phase 2")
+        deblurred_naive = naive_deblur(blurred, n, m, k)
+        p, mmm = print_res(picture, deblurred_naive)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 3.1")
+        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_gc)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 3.2")
+        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_gradient)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 4")
+        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_tot_var)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+    file.close()
+
+
+    """
+    LAMBDA TEST
+    """
+
+    print("LAMBDA TEST\n")
+
+    file = open("test_output/lambda_test.csv", "w")
+    file.write("lambda,psnr,mse\n")
+
+    values = [0.01,
+              0.05,
+              0.10,
+              0.15,
+              0.20,
+              0.30,
+              0.50]
+
     kernel = gaussian_kernel(ker_len, sigma)
     k = psf_fft(kernel, ker_len, (n, m))
 
-    # Phase 1: blur
     print("Phase 1")
     blurred = blur_picture(picture, k, noise_std_dev)
 
-    if show_pic:
-        fig.add_subplot(rows, columns, 2)
-        plt.imshow(blurred, cmap='gray')
-        plt.axis("off")
-        plt.title("Blurred")
-
-    start = time.time()
-
-    # Phase 2: naive solution
-    print("Phase 2")
-    deblurred_naive = naive_deblur(blurred, n, m, k)
-    t_2 = time.time()
-    print_res(picture, deblurred_naive, t_2 - start)
-
-    if show_pic:
-        fig.add_subplot(rows, columns, 3)
-        plt.imshow(deblurred_naive, cmap='gray')
-        plt.axis("off")
-        plt.title("Naive")
-
-    # Phase 3.1: solution with conjugate gradient method and Tikhonov regularization
     print("Phase 3.1")
-    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
-    t_31 = time.time()
-    print_res(picture, deblurred_gc, t_31 - t_2)
+    for i in values:
+        print(">iter:", i)
+        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, i)
+        p, mmm = print_res(picture, deblurred_gc)
+        file.write("{},{},{}\n".format(i, p, mmm))
 
-    if show_pic:
-        fig.add_subplot(rows, columns, 4)
-        plt.imshow(deblurred_gc, cmap='gray')
-        plt.axis("off")
-        plt.title("CG Tikhonov")
-
-    # Phase 3.2: solution with gradient descend and Tikhonov regularization
     print("Phase 3.2")
-    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
-    t_32 = time.time()
+    for i in values:
+        print(">iter:", i)
+        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, i)
+        p, mmm = print_res(picture, deblurred_gradient)
+        file.write("{},{},{}\n".format(i, p, mmm))
 
-    if deblurred_gradient is not None:
-        print_res(picture, deblurred_gradient, t_32 - t_31)
-        if show_pic:
-            fig.add_subplot(rows, columns, 5)
-            plt.imshow(deblurred_gradient, cmap='gray')
-            plt.axis("off")
-            plt.title("GD Tikhonov")
-
-    # Phase 4: solution with gradient descend and total variation regularization
     print("Phase 4")
-    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
-    t_4 = time.time()
+    for i in values:
+        print(">iter:", i)
+        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, i)
+        p, mmm = print_res(picture, deblurred_tot_var)
+        file.write("{},{},{}\n".format(i, p, mmm))
 
-    if deblurred_tot_var is not None:
-        print_res(picture, deblurred_tot_var, t_4 - t_32)
-        if show_pic:
-            fig.add_subplot(rows, columns, 6)
-            plt.imshow(deblurred_tot_var, cmap='gray')
-            plt.axis("off")
-            plt.title("GD Tot Var")
-
-    if show_pic:
-        plt.show()
+    file.close()
 
 
 def main():
     ds1 = './datasource/extra1.png'
-
-    elaborate_datasource(ds1, 0.5, 5, lamb=0.01)
-    elaborate_datasource(ds1, 1, 7)
-    elaborate_datasource(ds1, 1.3, 9)
+    elaborate_datasource(ds1, 0.5, 7)
 
 
 if __name__ == "__main__":
