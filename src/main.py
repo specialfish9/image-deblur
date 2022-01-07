@@ -259,6 +259,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     @param ker_len: Gaussian kernel length
     @param noise_std_dev: Standard deviation of noise
     @param lamb: Regularization parameter
+    @param show_pic: Show pictures
     """
     from matplotlib import pyplot as plt
     from helpers import gaussian_kernel, psf_fft
