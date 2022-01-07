@@ -251,7 +251,7 @@ def print_res(original, deblurred, time):
     print('This is the time: ', time)
 
 
-def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
+def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5, show_pic=True):
     """
     Given an image path first blur the image, then de-blur it using different methods
     @param image_path: Image path
@@ -273,10 +273,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     picture = picture[:, :, 0]
     n, m = picture.shape
 
-    fig.add_subplot(rows, columns, 1)
-    plt.imshow(picture, cmap='gray')
-    plt.axis("off")
-    plt.title("Original")
+    if show_pic:
+        fig.add_subplot(rows, columns, 1)
+        plt.imshow(picture, cmap='gray')
+        plt.axis("off")
+        plt.title("Original")
 
     # Create the kernel
     kernel = gaussian_kernel(ker_len, sigma)
@@ -286,10 +287,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     print("Phase 1")
     blurred = blur_picture(picture, k, noise_std_dev)
 
-    fig.add_subplot(rows, columns, 2)
-    plt.imshow(blurred, cmap='gray')
-    plt.axis("off")
-    plt.title("Blurred")
+    if show_pic:
+        fig.add_subplot(rows, columns, 2)
+        plt.imshow(blurred, cmap='gray')
+        plt.axis("off")
+        plt.title("Blurred")
 
     start = time.time()
 
@@ -299,10 +301,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     t_2 = time.time()
     print_res(picture, deblurred_naive, t_2 - start)
 
-    fig.add_subplot(rows, columns, 3)
-    plt.imshow(deblurred_naive, cmap='gray')
-    plt.axis("off")
-    plt.title("Naive")
+    if show_pic:
+        fig.add_subplot(rows, columns, 3)
+        plt.imshow(deblurred_naive, cmap='gray')
+        plt.axis("off")
+        plt.title("Naive")
 
     # Phase 3.1: solution with conjugate gradient method and Tikhonov regularization
     print("Phase 3.1")
@@ -310,10 +313,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     t_31 = time.time()
     print_res(picture, deblurred_gc, t_31 - t_2)
 
-    fig.add_subplot(rows, columns, 4)
-    plt.imshow(deblurred_gc, cmap='gray')
-    plt.axis("off")
-    plt.title("CG Tikhonov")
+    if show_pic:
+        fig.add_subplot(rows, columns, 4)
+        plt.imshow(deblurred_gc, cmap='gray')
+        plt.axis("off")
+        plt.title("CG Tikhonov")
 
     # Phase 3.2: solution with gradient descend and Tikhonov regularization
     print("Phase 3.2")
@@ -322,10 +326,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
 
     if deblurred_gradient is not None:
         print_res(picture, deblurred_gradient, t_32 - t_31)
-        fig.add_subplot(rows, columns, 5)
-        plt.imshow(deblurred_gradient, cmap='gray')
-        plt.axis("off")
-        plt.title("GD Tikhonov")
+        if show_pic:
+            fig.add_subplot(rows, columns, 5)
+            plt.imshow(deblurred_gradient, cmap='gray')
+            plt.axis("off")
+            plt.title("GD Tikhonov")
 
     # Phase 4: solution with gradient descend and total variation regularization
     print("Phase 4")
@@ -334,12 +339,14 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
 
     if deblurred_tot_var is not None:
         print_res(picture, deblurred_tot_var, t_4 - t_32)
-        fig.add_subplot(rows, columns, 6)
-        plt.imshow(deblurred_tot_var, cmap='gray')
-        plt.axis("off")
-        plt.title("GD Tot Var")
+        if show_pic:
+            fig.add_subplot(rows, columns, 6)
+            plt.imshow(deblurred_tot_var, cmap='gray')
+            plt.axis("off")
+            plt.title("GD Tot Var")
 
-    plt.show()
+    if show_pic:
+        plt.show()
 
 
 def main():
