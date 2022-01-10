@@ -264,6 +264,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     """
     KERNEL DIM TEST
     """
+    """
     print("KERNEL DIM TEST\n")
     file = open("test_output/ker_dim_test.csv", "w")
     file.write("ker_dim,psnr,mse\n")
@@ -314,7 +315,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         file.write("{},{},{}\n".format(i, p, mmm))
 
     file.close()
-
+    """
     """
     NOISE STD DEV TEST
     """
@@ -327,7 +328,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         0.02,
         0.03,
         0.04,
-        0.05
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+        0.09
     ]
 
     for i in values:
@@ -364,7 +369,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     """
     LAMBDA TEST
     """
-
+    """
     print("LAMBDA TEST\n")
 
     file = open("test_output/lambda_test.csv", "w")
@@ -406,10 +411,10 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         file.write("{},{},{}\n".format(i, p, mmm))
 
     file.close()
-
+    """
 
 def main():
-    ds1 = './datasource/extra1.png'
+    ds1 = './datasource/eight.png'
     elaborate_datasource(ds1, 0.5, 7)
 
 
