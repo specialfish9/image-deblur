@@ -1,6 +1,7 @@
 import string
 
 import numpy as np
+from numpy.random.mtrand import negative_binomial
 
 
 def lstsq(x, a, b):
@@ -264,7 +265,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     """
     KERNEL DIM TEST
     """
-    """
+    
     print("KERNEL DIM TEST\n")
     file = open("test_output/ker_dim_test.csv", "w")
     file.write("ker_dim,psnr,mse\n")
@@ -315,7 +316,64 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         file.write("{},{},{}\n".format(i, p, mmm))
 
     file.close()
+
     """
+    SIGMA DIM TEST
+    """
+    
+    print("SIGMA DIM TEST\n")
+    file = open("test_output/sigma_test.csv", "w")
+    file.write("sigma,psnr,mse\n")
+
+    values = [
+        0.1,
+        0.5,
+        1,
+        1.3,
+        1.7,
+        2.2,
+        2.6,
+        3.5,
+        4.7
+    ]
+    
+    for i in values:
+        if n < i:
+            print("ERROR: image to small")
+            continue
+            
+        print(">iter:", i)
+        kernel = gaussian_kernel(ker_len, i)
+        k = psf_fft(kernel, ker_len, (n, m))
+
+        print("Phase 1")
+        blurred = blur_picture(picture, k, noise_std_dev)
+
+
+        print("Phase 2")
+        deblurred_naive = naive_deblur(blurred, n, m, k)
+        p, mmm = print_res(picture, deblurred_naive)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 3.1")
+        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_gc)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 3.2")
+        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_gradient)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+        print("Phase 4")
+        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
+        p, mmm = print_res(picture, deblurred_tot_var)
+        file.write("{},{},{}\n".format(i, p, mmm))
+
+    file.close()
+
+
+
     """
     NOISE STD DEV TEST
     """
@@ -369,7 +427,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     """
     LAMBDA TEST
     """
-    """
+
     print("LAMBDA TEST\n")
 
     file = open("test_output/lambda_test.csv", "w")
@@ -411,11 +469,170 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         file.write("{},{},{}\n".format(i, p, mmm))
 
     file.close()
-    """
+    
+
+def elaborate_datasource_stats(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
+    import matplotlib.pyplot as plt
+    from helpers import gaussian_kernel, psf_fft
+
+    picture = plt.imread(image_path)
+    picture = picture[:, :, 0]
+    n, m = picture.shape
+
+    psnr = [None] * 4
+    mse = [None] * 4
+    
+    kernel = gaussian_kernel(ker_len, sigma)
+    k = psf_fft(kernel, ker_len, (n, m))
+
+    print("Phase 1")
+    blurred = blur_picture(picture, k, noise_std_dev)
+
+
+    print("Phase 2")
+    deblurred_naive = naive_deblur(blurred, n, m, k)
+    psnr[0], mse[0] = print_res(picture, deblurred_naive)
+
+
+    print("Phase 3.1")
+    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
+    psnr[1], mse[1] = print_res(picture, deblurred_gc)
+
+    print("Phase 3.2")
+    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
+    psnr[2], mse[2] = print_res(picture, deblurred_gradient)
+
+    print("Phase 4")
+    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
+    psnr[3], mse[3] = print_res(picture, deblurred_tot_var)
+
+    return psnr, mse
+
+
+
 
 def main():
-    ds1 = './datasource/eight.png'
-    elaborate_datasource(ds1, 0.5, 7)
+
+    elaborate_datasource('./datasource/extra1.png', 0.5, 7)
+
+    file = open("test_output/stats.csv", "w")
+
+    naive = []
+    tkgc = []
+    tkgd = []
+    tv = []
+
+    p1, m1 = elaborate_datasource_stats('./datasource/one.png', 0.5, 9, 0.01, 0.01)
+    p2, m2 = elaborate_datasource_stats('./datasource/two.png', 0.5, 9,0.01, 0.01)
+    p3, m3 = elaborate_datasource_stats('./datasource/three.png', 0.5, 9,0.01, 0.01)
+    p4, m4 = elaborate_datasource_stats('./datasource/four.png', 0.5, 9,0.01, 0.01)
+    p5, m5 = elaborate_datasource_stats('./datasource/five.png', 0.5, 9,0.01, 0.01)
+    p6, m6 = elaborate_datasource_stats('./datasource/six.png', 0.5, 9,0.01, 0.01)
+    p7, m7 = elaborate_datasource_stats('./datasource/seven.png', 0.5, 9,0.01, 0.01)
+    p8, m8 = elaborate_datasource_stats('./datasource/eight.png', 0.5, 9,0.01, 0.01)
+
+    naive.append(p1[0])
+    naive.append(p2[0])
+    naive.append(p3[0])
+    naive.append(p4[0])
+    naive.append(p5[0])
+    naive.append(p6[0])
+    naive.append(p7[0])
+    naive.append(p8[0])
+
+    tkgc.append(p1[1])
+    tkgc.append(p2[1])
+    tkgc.append(p3[1])
+    tkgc.append(p4[1])
+    tkgc.append(p5[1])
+    tkgc.append(p6[1])
+    tkgc.append(p7[1])
+    tkgc.append(p8[1])
+
+    tkgd.append(p1[2])
+    tkgd.append(p2[2])
+    tkgd.append(p3[2])
+    tkgd.append(p4[2])
+    tkgd.append(p5[2])
+    tkgd.append(p6[2])
+    tkgd.append(p7[2])
+    tkgd.append(p8[2])
+
+    tv.append(p1[3])
+    tv.append(p2[3])
+    tv.append(p3[3])
+    tv.append(p4[3])
+    tv.append(p5[3])
+    tv.append(p6[3])
+    tv.append(p7[3])
+    tv.append(p8[3])
+
+
+    file.write("PSNR\n")
+    file.write("method:mean/std\n")
+
+    file.write("{}:{}\n".format("naive",  np.mean(naive)))
+    file.write("{}:{}\n".format("naive",  np.std(naive)))
+    file.write("{}:{}\n".format("tkgc",  np.mean(tkgc)))
+    file.write("{}:{}\n".format("tkgc",  np.std(tkgc)))
+    file.write("{}:{}\n".format("tkgd",  np.mean(tkgd)))
+    file.write("{}:{}\n".format("tkgd",  np.std(tkgd)))
+    file.write("{}:{}\n".format("tv",  np.mean(tv)))
+    file.write("{}:{}\n".format("tv",  np.std(tv)))
+
+    naive = []
+    tkgc = []
+    tkgd = []
+    tv = []
+
+    naive.append(m1[0])
+    naive.append(m2[0])
+    naive.append(m3[0])
+    naive.append(m4[0])
+    naive.append(m5[0])
+    naive.append(m6[0])
+    naive.append(m7[0])
+    naive.append(m8[0])
+
+    tkgc.append(m1[1])
+    tkgc.append(m2[1])
+    tkgc.append(m3[1])
+    tkgc.append(m4[1])
+    tkgc.append(m5[1])
+    tkgc.append(m6[1])
+    tkgc.append(m7[1])
+    tkgc.append(m8[1])
+
+    tkgd.append(m1[2])
+    tkgd.append(m2[2])
+    tkgd.append(m3[2])
+    tkgd.append(m4[2])
+    tkgd.append(m5[2])
+    tkgd.append(m6[2])
+    tkgd.append(m7[2])
+    tkgd.append(m8[2])
+
+    tv.append(m1[3])
+    tv.append(m2[3])
+    tv.append(m3[3])
+    tv.append(m4[3])
+    tv.append(m5[3])
+    tv.append(m6[3])
+    tv.append(m7[3])
+    tv.append(m8[3])
+
+    file.write("MSE\n")
+    file.write("{}:{}\n".format("naive",  np.mean(naive)))
+    file.write("{}:{}\n".format("naive",  np.std(naive)))
+    file.write("{}:{}\n".format("tkgc",  np.mean(tkgc)))
+    file.write("{}:{}\n".format("tkgc",  np.std(tkgc)))
+    file.write("{}:{}\n".format("tkgd",  np.mean(tkgd)))
+    file.write("{}:{}\n".format("tkgd",  np.std(tkgd)))
+    file.write("{}:{}\n".format("tv",  np.mean(tv)))
+    file.write("{}:{}\n".format("tv",  np.std(tv)))
+
+    file.close()
+    
 
 
 if __name__ == "__main__":

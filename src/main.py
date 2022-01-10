@@ -251,7 +251,7 @@ def print_res(original, deblurred, time):
     print('This is the time: ', time)
 
 
-def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5, show_pic=True):
+def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e-5, show_pic=True):
     """
     Given an image path first blur the image, then de-blur it using different methods
     @param image_path: Image path
@@ -276,7 +276,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
 
     if show_pic:
         fig.add_subplot(rows, columns, 1)
-        plt.imshow(picture, cmap='gray')
+        plt.imshow(picture, cmap='gray', vmin=0, vmax=1)
         plt.axis("off")
         plt.title("Original")
 
@@ -290,21 +290,28 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
 
     if show_pic:
         fig.add_subplot(rows, columns, 2)
-        plt.imshow(blurred, cmap='gray')
+        plt.imshow(blurred, cmap='gray', vmin=0, vmax=1)
         plt.axis("off")
-        plt.title("Blurred")
+        plt.title("Blurred (Kernel length: {}, sigma: {})".format(ker_len, sigma))
 
     start = time.time()
 
     # Phase 2: naive solution
     print("Phase 2")
     deblurred_naive = naive_deblur(blurred, n, m, k)
+
+
+    for i in range(n):
+        for j in range(m):
+            if deblurred_naive[i][j] > 1:
+                print(deblurred_naive[i][j])
+
     t_2 = time.time()
     print_res(picture, deblurred_naive, t_2 - start)
 
     if show_pic:
         fig.add_subplot(rows, columns, 3)
-        plt.imshow(deblurred_naive, cmap='gray')
+        plt.imshow(deblurred_naive, cmap='gray', vmin=0, vmax=1)
         plt.axis("off")
         plt.title("Naive")
 
@@ -316,7 +323,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
 
     if show_pic:
         fig.add_subplot(rows, columns, 4)
-        plt.imshow(deblurred_gc, cmap='gray')
+        plt.imshow(deblurred_gc, cmap='gray', vmin=0, vmax=1)
         plt.axis("off")
         plt.title("CG Tikhonov")
 
@@ -329,7 +336,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         print_res(picture, deblurred_gradient, t_32 - t_31)
         if show_pic:
             fig.add_subplot(rows, columns, 5)
-            plt.imshow(deblurred_gradient, cmap='gray')
+            plt.imshow(deblurred_gradient, cmap='gray', vmin=0, vmax=1)
             plt.axis("off")
             plt.title("GD Tikhonov")
 
@@ -342,7 +349,7 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         print_res(picture, deblurred_tot_var, t_4 - t_32)
         if show_pic:
             fig.add_subplot(rows, columns, 6)
-            plt.imshow(deblurred_tot_var, cmap='gray')
+            plt.imshow(deblurred_tot_var, cmap='gray', vmin=0, vmax=1)
             plt.axis("off")
             plt.title("GD Tot Var")
 
@@ -351,9 +358,9 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
 
 
 def main():
-    ds1 = './datasource/extra1.png'
+    ds1 = './datasource/five.png'
 
-    elaborate_datasource(ds1, 0.5, 5, lamb=0.01)
+    elaborate_datasource(ds1, 0.5, 5, lamb=0.02)
     elaborate_datasource(ds1, 1, 7)
     elaborate_datasource(ds1, 1.3, 9)
 
