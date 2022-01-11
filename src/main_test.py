@@ -275,11 +275,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         5,
         7,
         9,
-        12,
-        50,
-        100,
-        300,
-        600
+        13,
+        49,
+        99,
+        299,
+        599
     ]
     
     for i in values:
@@ -509,12 +509,48 @@ def elaborate_datasource_stats(image_path, sigma, ker_len, noise_std_dev=5e-3, l
     return psnr, mse
 
 
+def _er(o, c):
+    import scipy as scipy
+    return scipy.linalg.norm(o-c, 2) / scipy.linalg.norm(o,2) 
+
+def elaborate_datasource_gc_vs_gd(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
+    import matplotlib.pyplot as plt
+    from helpers import gaussian_kernel, psf_fft
+
+    file = open("test_output/gc_vs_gd.csv","w")
+
+    picture = plt.imread(image_path)
+    picture = picture[:, :, 0]
+    n, m = picture.shape
+    
+    kernel = gaussian_kernel(ker_len, sigma)
+    k = psf_fft(kernel, ker_len, (n, m))
+
+    print("Blurring...")
+    blurred = blur_picture(picture, k, noise_std_dev)
+
+    i = 5
+    file.write("max_iter:psnrCg:psnrCd:mseCg:mseCd:erCg:erCd\n")
+    while i <= 50:
+        print("New iteration: ", i)
+        print("cg...")
+        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=i)
+        pcg, mcg = print_res(picture, deblurred_gc)
 
 
-def main():
+        print("gd...")
+        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb, max_iter=i)
+        pcd, mcd = print_res(picture, deblurred_gradient)
+        
+        ercg = _er(picture, deblurred_gc)
+        ercd = _er(picture, deblurred_gradient)
+        file.write("{}:{}:{}:{}:{}:{}:{}\n".format( i, pcg, pcd, mcg, mcd, ercg, ercd))
+        i += 5
 
-    elaborate_datasource('./datasource/extra1.png', 0.5, 7)
+    file.close()
 
+
+def stats():
     file = open("test_output/stats.csv", "w")
 
     naive = []
@@ -632,8 +668,10 @@ def main():
     file.write("{}:{}\n".format("tv",  np.std(tv)))
 
     file.close()
-    
 
+
+def main():
+    elaborate_datasource_gc_vs_gd("datasource/extra1.png", 1, 7)
 
 if __name__ == "__main__":
     main()
