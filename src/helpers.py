@@ -39,3 +39,7 @@ def A(x, K):
 def AT(x, K):
     x = fft.fft2(x)
     return np.real(fft.ifft2(np.conj(K) * x))
+
+def rel_err(o, c):
+    import scipy as scipy
+    return scipy.linalg.norm(o-c, 2) / scipy.linalg.norm(o,2) 

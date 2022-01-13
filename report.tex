@@ -1,30 +1,1173 @@
 \documentclass{article}
 \usepackage[utf8]{inputenc}
-
-\title{Relazione progetto calcolo numerico}
-\author{Koci Erik | Girolimetto Mattia | Scrob Andreea}
-\date{January 2022}
+\usepackage[italian]{babel}
+\usepackage{graphicx}
+\usepackage{ragged2e}
+\usepackage{amsmath}
+\usepackage{amsfonts} 
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{epigraph}
+\graphicspath{ {.} }
+\DeclareMathOperator*{\argmin}{argmin} 
 
 \begin{document}
 
-\maketitle
+\begin{titlepage}
 
-\section{Intestazione}
-\textbf{Nome del progetto:} Deblur Immagini\\
-\textbf{cognome e nome autori:}
+    \begin{center}
+        \vspace*{1cm}
+        \Huge
+        \textbf{Image Deblur}
+            
+        \vspace{0.5cm}
+        \LARGE
+         Relazione del progetto per l'insegnamento di Calcolo Numerico\\
+        
+            
+        \vspace{1.5cm}
+        \vfill
+        Mattia Girolimetto \\Erik Koci \\Andreea Scrob \\
+            
+        \vspace{0.8cm}
+            
+        \includegraphics[width=0.8\textwidth]{img/unibo.png}
+            
+        \Large
+        Dipartimento di Informatica\\
+        Università di Bologna\\
+        A.A 2021/2022\\
+            
+    \end{center}
+\end{titlepage}
+
+\epigraph{Non c’è niente di peggio di un’immagine nitida di un concetto sfuocato.}
+{\textit{Ansel Adams}}
+
+\epigraph{“Last time I asked: 'What does mathematics mean to you?', and some people answered: "The manipulation of numbers, the manipulation of structures.' And if I had asked what music means to you, would you have answered: 'The manipulation of notes?'”}
+{\textit{Serge Lang, The Beauty of Doing Mathematics }}
+
+\newpage
+
+\begin{center}
+\textbf{Abstract}
+\end{center}
+Nel mondo scientifico come in quello di tutti i giorni, spesso ci si ritrova a fare i conti con delle immagini sfocate.
+Questo è causato dalle imprecisioni degli strumenti o da condizioni esterne alle quali si è obbligati a sottostare.
+In questo progetto viene analizzato il problema del deblur, ovvero di come poter costruire un'immagine nitida partendo proprio da foto sfocate. Verranno spiegate, testate e confrontate differenti possibili soluzioni che fanno uso di strumenti matematici per conseguire lo scopo. In particolare sarà proposta una soluzione naive ricondotta al problema dei minimi quadrati lineari e, partendo da quella, altre due soluzioni migliorate basate sui metodi di regolarizzazione.
+Verranno confrontati anche diversi algoritmi per implementare queste soluzioni. Il tutto sarà accompagnato da immagini che raffigurano l'integrità e un'accurata raccolta di dati.
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Introduzione al deblur}
+Spesso nelle applicazioni scientifiche ci si imbatte nel problema di avere immagini sfocate, ciò è dovuto agli strumenti utilizzati come macchine fotografiche, microscopi e telescopi. Risulta quindi necessario sfruttare dei metodi per renderle più nitide (\textit{deblur}).
+
+\subsection{Rappresentare immagini}
+Le immagini in bianco e nero possono essere rappresentate come matrici di numeri i cui elementi (solitamente da 0 a 255) indicano l’intensità di grigio di un \textit{pixel}. Quelle a colori invece sono il risultato della sovrapposizione di tre di queste matrici i cui numeri questa volta rappresentano l'intensità di rosso, verde e blu.
+
+\subsection{Point Spread Function}
+L'immagine iniziale catturata dallo strumento e quella che effettivamente otteniamo possono  essere rappresentate come due funzioni, rispettivamente $f$ e $g$. La trasformazione di $f$ in $g$ è anch'essa rappresentabile tramite una funzione, chiamata \textbf{PSF} (Point Spread Function), che è propria dello strumento di acquisizione e l'effetto visivo causato dalla sua applicazione è detto \textbf{blurring}. Quando questo processo agisce su un singolo pixel altera anche quelli circostanti che rientrano in una matrice di dimensione dispari detta \textit{kernel} o matrice di convoluzione. In questo progetto è stato usato un \textit{kernel gaussiano} per l'operatore di blur. Questo dipende da due parametri: la dimensione $d$ e la sua deviazione standard $\sigma$.
+\\
+Se si rappresenta l'applicazione del processo detto sopra tramite una matrice $A$ (detta \textit{operatore di blur}), è possibile descrivere il processo di formazione dell'immagine tramite il seguente modello matematico: $$ g = Af $$ 
+
+
+Nel caso pratico, durante la digitalizzazione di un'immagine, viene applicato un ulteriore filtro rappresentato dal \textit{rumore di lettura}. E' possibile quindi modificare il modello precedente per tener conto di questo fattore: $$ g = Af + \eta $$
+Di seguito sono riportate alcuni risultati del processo di blur con diverse dimensioni e deviazioni standard  del kernel su un immagine 600 x 600 che da questo punto in avanti verrà presa come riferimento per i test e altre due immagini: una raffigurante una radiografia di un cervello umano e un'altra con delle forme geometriche.
+
+
+\newpage
+
+\begin{figure}[h]
+    \begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/BlurredK6S05.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/BlurredK7S1.png}
+    \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/BlurredK9S13.png}
+    \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+    \hfill
+\label{fig:figures} 
+\end{figure}
+
+\begin{figure}[h]
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/blurredK5S05.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/blurredK7S1.png}
+    \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/blurredK9S13.png}
+    \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+
+\begin{figure}[h]
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/blurredK5S05.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/blurredK7S1.png}
+    \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/blurredK9S13.png}
+    \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+\newpage
+
+\subsection{Deblur}
+Una volta espressa con un modello matematico l'operazione di blur, ci si può chiedere se è possibile invertire il processo ovvero, partendo da un'immagine sfocata ed avendo conoscenza della composizione dell'operatore di blur, ottenere un'immagine nitida più simile possibile a quella originale.
+Nello studio delle immagini sono state sviluppate diverse tecniche che manipolano la figura usando gli strumenti della matematica.
+
+\subsection{PSNR \& MSE}
+Di seguito sono proposti diversi approcci risolutivi assieme ai relativi test. La qualità del risultato per ciascuno è misurata tramite l'\textit{errore quadratico medio (MSE)} e il \textit{peak signal-to-noise ratio (PSNR)}.
+Il primo indica la discrepanza quadratica media fra i valori dell'immagine sfocata ed i valori dell'immagine reale, mentre il secondo indica il rapporto tra la massima potenza di un segnale e la potenza di rumore che può invalidare la fedeltà della sua rappresentazione compressa.
+
+\section{Soluzione Naive}
+\subsection{Introduzione}
+Un primo approccio \textit{naive} è quello di ricondursi al problema dei minimi quadrati lineari e sfruttarlo per risolvere l'equazione precedente.\\ 
+Dati l'immagine sfocata $b$ e l'operatore di blur $A$ quindi il problema diventa:
+$$ x^* = \argmin_x \frac{1}{2}||Ax - b||_2^2 $$
+
+\subsection{Analisi risultati}
+Di seguito sono riportati i risultati di alcuni test eseguiti variando la dimensione del kernel, la sua deviazione standard e la deviazione standard del rumore gaussiano. Per comodità da questo punto in avanti questi parametri verranno chiamati rispettivamente $d$, $\sigma$ e $s$. Tutti i test sono stati svolti sull'immagine di riferimento.
+con dimensione 600 x 600 e usando il metodo del gradiente coniugato per minimizzare la funzione.
+
+\begin{figure}[h]
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/naive1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/naive2.png}
+    \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/naive3.png}
+    \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+%--------------------------------------------------
+\begin{figure}[h]
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/naive1.png}
+        \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/naive2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/naive3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+%--------------------------------------------------
+\begin{figure}[h]
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/naive1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/naive2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/naive3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\caption{Naive}
+\label{fig:figures}
+\end{figure}
+
+\newpage % AATTTENNZZZIOOOONEEE
+
+
+Nei test sulla dimensione del kernel (con $\sigma$ e $s$ fissati rispettivamente a $0.5$ e
+$0.01$) si nota che per valori piccoli la PSRN si stabilizza attorno a $27$, per poi
+abbassarsi fino a raggiungere circa $23$ per valori molto alti.
+Nei test su $\sigma$ (con $d = 7$ e $s=0.5$ fissati) si nota che si ottengono valori di
+PSNR molto alti se $ \sigma \in [0,1;0,5]$ mentre per valori più grandi si stabilizza
+attorno a $20$.
+Infine nei test sulla deviazione standard del rumore gaussiano (con $d=7$ e $\sigma=0.5$
+fissati) è possibile vedere, com'era prevedibile, che più è basso il valore più l'immagine
+risulta fedele. Ciò perchè più $s$ è vicino allo zero meno rumore viene applicato nel
+processo di blur.
+
+
+
+\hskip-2cm\begin{tabular}{ |c||c||c|}
+\hline
+Dimensione Kernel ($d$) & Deviazione Standard Kernel ($\sigma$) & Deviazione Standard
+Rumore  ($s$)\\
+\hline
+$\sigma=0.5, s=0.01$ & $d=7, s=0.01$ & $d=7, \sigma=0.5$ \\
+\hline
+\begin{tabular}{c|c|c}
+$d$ & PSNR &	MSE \\
+1 &	46,0233 &	0,0001 \\
+3 &	26,9202 &	0,0020 \\
+5 &	27,2361 &	0,0019 \\
+7 &	27,2163 &	0,0019 \\
+9 &	27,2012 &	0,0019 \\
+11 &	27,2027 &	0,0019 \\
+13 &	27,2245 &	0,0019 \\
+15 &	27,1621 &	0,0019 \\
+17 &	27,2457 &	0,0019 \\
+21 &	27,1954 &	0,0019 \\
+49 &	27,1644 &	0,0019 \\
+99 &	27,1967 &	0,0019 \\
+299 &	27,2429 &	0,0019 \\
+599 &	27,1899 &	0,0019 \\
+\hline
+\end{tabular} &
+\begin{tabular}{c|c|c}
+$\sigma$ &	PSNR &	MSE \\
+0,03 &	46,0120 &	0,00001 \\
+0,05 &	46,0125 &	0,00002 \\
+0,10 &	45,7960 &	0,00002 \\
+0,30 &	38,4357 &	0,0001 \\
+0,50 &	27,1954 &	0,0019 \\
+0,70 &	22,5941 &	0,0055 \\
+1,00 &	20,9502 &	0,0080 \\
+1,30 &	22,3672 &	0,0058 \\
+1,70 &	22,5950 &	0,0055 \\
+2,20 &	21,5127 &	0,0071 \\
+2,60 &	20,9510 &	0,0080 \\
+3,50 &	19,9164 &	0,0102 \\
+4,70 &	20,7026 &	0,0085 \\
+5,00 &	20,8376 &	0,0082 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c|c}
+s &	PSNR &	MSE \\
+0,0050 &	27,1993 &	0,0019 \\
+0,0100 &	21,1458 &	0,0077 \\
+0,0150 &	17,6368 &	0,0172 \\
+0,0200 &	15,0820 &	0,0310 \\
+0,0250 &	13,1432 &	0,0485 \\
+0,0300 &	11,6032 &	0,0691 \\
+0,0350 &	10,2289 &	0,0949 \\
+0,0400 &	9,0664 &	0,1240 \\
+0,0450 &	8,0592 &	0,1563 \\
+0,0500 &	7,1303 &	0,1936 \\
+0,0600 &	5,5450 &	0,2789 \\
+0,0700 &	4,2635 &	0,3747 \\
+0,0800 &	3,1535 &	0,4838 \\
+0,0900 &	2,1166 &	0,6142 \\
+\hline
+\end{tabular} 
+\end{tabular}\\
+
+\hfill
+
+\begin{center}
+    \begin{tabular}{|c|c|}
+\hline
+Iterazioni & Errore Relativo  \\
+\hline
+0 & 0,3211758297377572  \\ 
+1 & 0,0389028416649516  \\ 
+2 & 0,0390940697379550  \\ 
+3 & 0,0503406719131519  \\ 
+4 & 0,0628815598202726  \\ 
+5 & 0,0734461624036303  \\ 
+6 & 0,0826155576435253  \\ 
+7 & 0,0907007102689772  \\ 
+8 & 0,0983303752040800  \\ 
+9 & 0,1057864076224074  \\ 
+10 & 0,113403284728043  \\ 
+11 & 0,121356904981678  \\ 
+12 & 0,129515429118821  \\ 
+13 & 0,137854412873597  \\ 
+14 & 0,146304879194118  \\ 
+\hline
+\end{tabular}
+\end{center}
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.5]{testIMG/Errore Relativo Soluzione Naive.png}
+\end{figure}
+
+\newpage
+
+\subsection{Conclusioni}
+Questa formulazione riesce a dare un buon risultato, tuttavia non garantisce una stabilità per quanto riguarda il rumore, per questo motivo è necessario modificarla usando altri metodi come quelli di \textit{ regolarizzazione}.
+
+\section{Regolarizzazione di Tikhonov}
+\subsection{Introduzione}
+Il metodo seguente è uno dei più usati per regolarizzare alcuni dei problemi mal posti. 
+Partendo dalla formulazione dei minimi quadrati vista in precedenza, si somma un termine composto da una funzione $\phi$ (\textit{funzione di regolarizzazione}) ed un $\lambda \in \mathbb{R}$ (\textit{parametro di regolarizzazione}). In particolare il metodo di Tikhonov prevede di scegliere $$\phi = \frac{1}{2}||x||^2_2$$
+Mentre lo scalare $\lambda$ resta arbitrario.
+Dunque il problema da risolvere diventa:
+$$ x^* = \argmin_x \frac{1}{2}||Ax - b||_2^2 + \lambda \frac{1}{2}||x||^2_2 $$
+
+\newpage
+\subsection{Analisi risultati}
+Per la risoluzione del problema sono stati usati due algoritmi differenti: quello del \textit{gradiente coniugato} e quello di \textit{discesa del gradiente}. Sono riportati i risultati di entrambi, eseguiti di consueto sull'immagine di riferimento. 
+Nel caso del gradiente coniugato si è trovato opportuno limitare il numero di iterazioni a 13, mentre nel caso della discesa del gradiente a 50. Il perché di questa scelta verrà motivato alla sezione 3.3.
+
+
+\begin{figure}[h]
+\begin{subfigure}{0.36\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTikhonov1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTikhonov2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTikhonov3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+
+\begin{figure}[h]
+     \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/CGTikhonov1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}% 
+\hfill
+ \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/CGTikhonov2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+ \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/CGTikhonov3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+%----------------------------------------------
+
+\label{fig:figures}
+\end{figure}
+
+\begin{figure}[h]
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/CGTikhonov1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/CGTikhonov2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/CGTikhonov3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\caption{Gradiente Coniugato}
+\label{fig:figures}
+\end{figure}
+
+%----------------------------------------------
+\begin{center}
+    
+\begin{tabular}{ |c||c|}
+\hline
+\multicolumn{2}{|c|}{Gradiente Coniugato} \\
+\hline
+Dimensione Kernel ($d$) & Deviazione Standard Kernel ($\sigma$)\\ 
+\hline
+$\sigma=0.5, s=0.01, \lambda=10^{-5}$ & $d=7, s=0.01, \lambda=10^{-5}$\\
+\hline
+\begin{tabular}{c|c|c}
+$d$ & PSNR &	MSE \\
+1 &	46,0233 &	0,0001 \\
+3 &	26,9582 &	0,0020 \\
+5 &	27,2677 &	0,0019 \\
+7 &	27,2480 &	0,0019 \\
+9 &	27,2330 &	0,0019 \\
+11 &	27,2345 &	0,0019 \\
+13 &	27,2561 &	0,0019 \\
+15 &	27,1941 &	0,0019 \\
+17 &	27,2770 &	0,0019 \\
+21 &	27,2271 &	0,0019 \\
+49 &	27,1964 &	0,0019 \\
+99 &	27,2283 &	0,0019 \\
+299 &	27,2744 &	0,0019 \\
+599 &	27,2216 &	0,0019 \\
+\hline  
+\end{tabular} &  
+\begin{tabular}{c|c|c}
+$\sigma$ &	PSNR &	MSE \\
+0,03 &	46,0121 &	< 0,0001 \\
+0,05 &	46,0126 &	< 0,0001 \\
+0,10 &	45,7961 &	< 0,0001 \\
+0,30 &	38,4366 &	0,0001 \\
+0,50 &	27,2272 &	0,0019 \\
+0,70 &	22,6598 &	0,0054 \\
+1,00 &	21,0494 &	0,0079 \\
+1,30 &	22,4531 &	0,0057 \\
+1,70 &	22,6779 &	0,0054 \\
+2,20 &	21,6176 &	0,0069 \\
+2,60 &	21,0613 &	0,0078 \\
+3,50 &	20,0186 &	0,0100 \\
+4,70 &	20,7729 &	0,0084 \\
+5,00 &	20,9054 &	0,0081 \\
+\hline
+\end{tabular}
+\end{tabular}
+
+\end{center}
+ 
+\vspace*{20px}
+
+%SEPARAAAA
+\begin{tabular}{ |c||c|}
+\hline
+\multicolumn{2}{|c|}{Gradiente Coniugato} \\
+\hline
+Parametro di Regolarizzazione ($\lambda$) & Deviazione Standard Rumore ($s$) \\
+\hline
+$d = 7, \sigma=0.5, s=0.01$ & $d=7, \sigma=0.5, \lambda=10^{-5}$\\
+\hline 
+\begin{tabular}{c|c|c}
+$\lambda$ &	PSNR &	MSE \\
+0,0010 &	29,4493 &	0,0011 \\
+0,0050 &	32,7232 &	0,0005 \\
+0,0100 &	34,0844 &	0,0004 \\
+0,0300 &	33,7161 &	0,0004 \\
+0,0500 &	32,0888 &	0,0006 \\
+0,0700 &	30,6290 &	0,0009 \\
+0,1000 &	28,9066 &	0,0013 \\
+0,1500 &	26,7975 &	0,0021 \\
+0,2000 &	25,2561 &	0,0030 \\
+0,3000 &	23,0855 &	0,0049 \\
+0,5000 &	20,4772 &	0,0090 \\
+0,8000 &	18,3358 &	0,0147 \\
+1,0000 &	17,4367 &	0,0180 \\
+1,5000 &	16,0226 &	0,0250 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c|c}
+s &	PSNR &	MSE \\
+0,0050 &	27,2307 &	0,0019 \\
+0,0100 &	21,1782 &	0,0076 \\
+0,0150 &	17,6692 &	0,0171 \\
+0,0200 &	15,1151 &	0,0308 \\
+0,0250 &	13,1762 &	0,0481 \\
+0,0300 &	11,6364 &	0,0686 \\
+0,0350 &	10,2619 &	0,0941 \\
+0,0400 &	9,0998 &	0,1230 \\
+0,0450 &	8,0924 &	0,1552 \\
+0,0500 &	7,1636 &	0,1921 \\
+0,0600 &	5,5782 &	0,2768 \\
+0,0700 &	4,2967 &	0,3718 \\
+0,0800 &	3,1850 &	0,4803 \\
+0,0900 &	2,1479 &	0,6098 \\
+\hline
+\end{tabular}
+\end{tabular}
+
+\
+\begin{figure}[h]
+\begin{tabular}{c c c}
+    \begin{subfigure}{0.36\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTikhonov1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure} & \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTikhonov2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}  & \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTikhonov3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}  \\
+
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/GDTikhonov1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}     & \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/GDTikhonov2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure} & \begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/GDTikhonov3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}  \\
+     
+ \begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/GDTikhonov1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}     &  \begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/GDTikhonov2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}  & \begin{subfigure}{0.25\textwidth}
+    \includegraphics[width=\textwidth]{source1/GDTikhonov3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}  \\
+\end{tabular}
+\caption{Discesa del gradiente}
+\label{fig:figures}
+\end{figure}
+
+%----------------------------------------------
+
+\newpage
+
+
+%----------------------------------------------
+
+\begin{center}
+
+% TABELLE GD 
+\begin{tabular}{ |c||c|}
+\hline
+\multicolumn{2}{|c|}{Discesa del Gradiente} \\
+\hline
+Dimensione Kernel ($d$) & Deviazione Standard Kernel ($\sigma$) \\
+\hline
+$\sigma=0.5, s=0.01, \lambda=10^{-5}$ & $d=7, s=0.01, \lambda=10^{-5}$\\
+\hline
+\begin{tabular}{c|c|c}
+$d$ &	PSNR &	MSE \\
+1 &	46,0233 &	0,0001 \\
+3 &	34,6372 &	0,0003 \\
+5 &	34,4819 &	0,0004 \\
+7 &	34,4974 &	0,0004 \\
+9 &	34,4791 &	0,0004 \\
+11 &	34,4666 &	0,0004 \\
+13 &	34,4695 &	0,0004 \\
+15 &	34,4832 &	0,0004 \\
+17 &	34,4678 &	0,0004 \\
+21 &	34,4586 &	0,0004 \\
+49 &	34,4883 &	0,0004 \\
+99 &	34,4802 &	0,0004 \\
+299 &	34,4855 &	0,0004 \\
+599 &	34,4819 &	0,0004 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c|c}
+$\sigma$ &	PSNR &	MSE \\
+0,03 &	46,0121 &	< 0,0001 \\
+0,05 &	46,0125 &	< 0,0001 \\
+0,10 &	45,7961 &	< 0,0001 \\
+0,30 &	38,5602 &	0,0001 \\
+0,50 &	34,4751 &	0,0004 \\
+0,70 &	32,5380 &	0,0006 \\
+1,00 &	30,0166 &	0,0010 \\
+1,30 &	28,3105 &	0,0015 \\
+1,70 &	26,7954 &	0,0021 \\
+2,20 &	25,5907 &	0,0028 \\
+2,60 &	24,9751 &	0,0032 \\
+3,50 &	24,2859 &	0,0037 \\
+4,70 &	24,0409 &	0,0039 \\
+5,00 &	24,0320 &	0,0040 \\
+\hline
+\end{tabular}
+\end{tabular}
+% SEPARAAA
+
+\begin{tabular}{ |c||c|}
+\hline
+\multicolumn{2}{|c|}{Discesa del Gradiente} \\
+\hline
+Parametro di Regolarizzazione ($\lambda$) & Deviazione Standard Rumore ($s$) \\
+\hline
+$d = 7, \sigma=0.5, s=0.01$ & $d=7, \sigma=0.5, \lambda=10^{-5}$\\
+\hline
+\begin{tabular}{c|c|c}
+$\lambda$ &	PSNR &	MSE \\
+0,0010 &	34,5323 &	0,0004 \\
+0,0050 &	34,7684 &	0,0003 \\
+0,0100 &	34,8877 &	0,0003 \\
+0,0300 &	33,7112 &	0,0004 \\
+0,0500 &	32,0802 &	0,0006 \\
+0,0700 &	30,6269 &	0,0009 \\
+0,1000 &	28,9062 &	0,0013 \\
+0,1500 &	26,7975 &	0,0021 \\
+0,2000 &	25,2562 &	0,0030 \\
+0,3000 &	23,0855 &	0,0049 \\
+0,5000 &	20,4772 &	0,0090 \\
+0,8000 &	18,3358 &	0,0147 \\
+1,0000 &	17,4367 &	0,0180 \\
+1,5000 &	16,0226 &	0,0250 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c|c}
+s &	PSNR &	MSE \\
+0,0050 &	34,4673 &	0,0004 \\
+0,0100 &	29,0521 &	0,0012 \\
+0,0150 &	25,6694 &	0,0027 \\
+0,0200 &	23,2132 &	0,0048 \\
+0,0250 &	21,2975 &	0,0074 \\
+0,0300 &	19,7313 &	0,0106 \\
+0,0350 &	18,3834 &	0,0145 \\
+0,0400 &	17,2443 &	0,0189 \\
+0,0450 &	16,2229 &	0,0239 \\
+0,0500 &	15,3064 &	0,0295 \\
+0,0600 &	13,7089 &	0,0426 \\
+0,0700 &	12,4125 &	0,0574 \\
+0,0800 &	11,2228 &	0,0755 \\
+0,0900 &	10,1915 &	0,0957 \\
+\hline
+\end{tabular}
+\end{tabular}
+\end{center}
+
+
+Risulta evidente il miglioramento del valore del PSNR rispetto alla soluzione precedente, per maggiori confronti con gli altri metodi rimandiamo alla sezione 5. Si nota inoltre, in alcuni casi, una netta discrepanza tra i due algoritmi risolutivi. Nella sezione successiva verranno messe in evidenza e discusse queste differenze.
+
+
+\subsection{Discesa del Gradiente VS Gradiente Coniugato}
+Di seguito sono stati messi a confronto i due metodi utilizzati. Sono stati calcolati valori di PSRN, di MSE e l'errore relativo su un numero variabile di iterazioni. I test sono stati eseguiti sempre sull'immagine del pianeta di riferimento, con dimensione del kernel pari a 7, deviazione standard del kernel pari a 1, devizaione standard del rumore pari a $5 \cdot 10^{-3}$ e termine di regolarizzazione pari a $10^{-3}$.
+
+ \hskip-2cm\begin{tabular}{|c||c|c||c|c||c|c|}  
+\hline
+ Max iter. & PSNR GC & PSNR GD & MSE GC & MSE GD & Errore Rel. GC & Errore Rel. GD\\
+ \hline
+5 & 27,900  & 26,514 & 0,002 & 0,002 & 0,0252 & 0,0299\\
+10 & 29,924 & 27,690 & 0,001 & 0,002 & 0,0205 & 0,0269\\
+15 & 30,119 & 28,370 & 0,001 & 0,001 & 0,0181 & 0,0254\\
+20 & 29,16  & 28,836 & 0,001 & 0,001 & 0,0168 & 0,0244\\
+25 & 27,629 & 29,100 & 0,002 & 0,001 & 0,0176 & 0,0236\\
+30 & 26,001 & 29,431 & 0,003 & 0,001 & 0,0207 & 0,0230\\
+35 & 24,502 & 29,632 & 0,004 & 0,001 & 0,0243 & 0,0225\\
+40 & 23,180 & 29,791 & 0,005 & 0,001 & 0,0282 & 0,0221\\
+45 & 22,027 & 29,919 & 0,006 & 0,001 & 0,0323 & 0,0217\\
+50 & 21,017 & 30,021 & 0,008 & 0,001 & 0,0364 & 0,0214\\
+55 & 20,142 & 30,097 & 0,010 & 0,001 & 0,0399 & 0,0212 \\
+60 & 19,371 & 30,161 & 0,012 & 0,001 & 0,0437 & 0,0209 \\
+65 & 18,699 & 30,211 & 0,013 & 0,001 & 0,0472 & 0,0207 \\
+70 & 18,108 & 30,248 & 0,015 & 0,001 & 0,0504 & 0,0205 \\
+75 & 17,582 & 30,276 & 0,017 & 0,001 & 0,0534 & 0,0203 \\
+80 & 17,112 & 30,294 & 0,019 & 0,001 & 0,0562 & 0,0201 \\
+85 & 16,691 & 30,305 & 0,021 & 0,001 & 0,0587 & 0,0200 \\
+90 & 16,310 & 30,309 & 0,023 & 0,001 & 0,0613 & 0,0198 \\
+95 & 15,965 & 30,308 & 0,025 & 0,001 & 0,0640 & 0,0197 \\
+100 & 15,648 & 30,301 & 0,027 & 0,001 & 0,0665 & 0,0195 \\
+\hline
+\end{tabular}
+
+\begin{center}
+    \includegraphics[scale=0.6]{testIMG/ErroreRelativoCGVSGD.png}
+\end{center}
+
+Come si può notare dal grafico l'errore relativo del metodo del gradiente coniugato, dopo
+una prima fase di decrescita, tende a crescere molto più velocemente del metodo di discesa
+del gradiente che invece segue un andamento più lineare e sembra convergere ad un
+valore attorno al 2. 
+Se si guarda la qualità del risultato però ci si accorge che il primo raggiunge un PSNR di
+$30,119$ dopo solo 15 iterazioni, mentre il secondo per raggiungere quel valore ne impiega
+circa 50. Anche il comportamento dopo il raggiungimento di quella che sembra essere la
+soluzione ottima è molto diverso: il primo continuando con le iterazioni si allontana
+sempre più dal risultato, mentre il secondo sembra restare in un intorno del valore ottimo
+anche dopo molte iterazioni. 
+Se ne conclude che il metodo del gradiente coniugato raggiunge l'ottimo più velocemente
+ma se si esagera con il numero di iterazioni diventa poco affidabile. D'altro canto quello
+di discesa è più lento ma più stabile.
+
+\subsection{Conclusioni}
+Usando la formulazione di Tikhonov si ottiene un risultato migliore rispetto alla soluzione naive, sia con il metodo del gradiente coniugato, sia con quello di discesa del gradiente. Le differenze tra i due sono probabilmente dovute al numero di iterazioni non ideale.
+
+\section{Variazione Totale}
+\subsection{Introduzione}
+Un altro metodo di regolarizzazione usato nell'ambito dell'elaborazione delle immagini è quello di
+regolarizzazione a variazione totale. Si basa sul principio del rumore che causa un
+incremento della variazione totale del segnale. Con un segnale bidimensionale, come nel caso delle
+immagini digitali, la variazione totale $TV$ si calcola:
+$$
+TV(u)=\sum_{i=0}^n \sum_{j=0}^m \sqrt{|| \nabla u(i,j)||_2^2 + \epsilon^2}
+$$
+
+Usando $TV$ come funzione di regolarizzazione è possibile quindi riscrivere il problema come:
+$$ x^* = \argmin_x \frac{1}{2}||Ax - b||_2^2 + \lambda TV(u)$$
+
+\newpage
+
+\subsection{Analisi risultati}
+Come per i metodi precedenti sono riportati di seguito alcuni test eseguiti con parametri variabili. 
+
+\begin{figure}[h]
+\begin{subfigure}{0.32\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTotVar1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.32\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTotVar2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.32\textwidth}
+    \includegraphics[width=\textwidth]{testIMG/GDTotVar3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+%----------------------------------------------
+\begin{figure}[h]
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/GDTotVar1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/GDTotVar2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.3\textwidth}
+    \includegraphics[width=\textwidth]{extra2/GDTotVar3.png}
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\label{fig:figures}
+\end{figure}
+%----------------------------------------------
+\begin{figure}[h]
+\begin{subfigure}{0.27\textwidth}
+    \includegraphics[width=\textwidth]{source1/GDTotVar1.png}
+    \caption{$d=6$, $\sigma=0.5$}
+    \label{fig:first}
+\end{subfigure}%
+    \hfill
+\begin{subfigure}{0.27\textwidth}
+    \includegraphics[width=\textwidth]{source1/GDTotVar2.png}
+        \caption{$d=7$, $\sigma=1.0$}
+    \label{fig:second}
+\end{subfigure}%
+\hfill
+\begin{subfigure}{0.27\textwidth}
+    \includegraphics[width=\textwidth]{source1/GDTotVar3.png} 
+        \caption{$d=9$, $\sigma=1.3$}
+    \label{fig:third}
+\end{subfigure}
+\caption{Variazione Totale}
+\label{fig:figures}
+\end{figure}
+%----------------------------------------------
+
+
+\begin{center}
+\begin{tabular}{ |c|c|}
+\hline
+Dimensione Kernel & Deviazione Standard Kernel ($\sigma$) \\
+\hline
+\begin{tabular}{c|c|c}
+Dim. Kernel & PSNR &	MSE \\
+1 &	46,0258 &	0,0001 \\
+3 &	34,6635 &	0,0003 \\
+5 &	34,5086 &	0,0004 \\
+7 &	34,5242 &	0,0004 \\
+9 &	34,5057 &	0,0004 \\
+11 &	34,4931 &	0,0004 \\
+13 &	34,4961 &	0,0004 \\
+15 &	34,5099 &	0,0004 \\
+17 &	34,4945 &	0,0004 \\
+21 &	34,4853 &	0,0004 \\
+49 &	34,5150 &	0,0004 \\
+99 &	34,5068 &	0,0004 \\
+299 &	34,5120 &	0,0004 \\
+599 &	34,5085 &	0,0004 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c|c}
+$\sigma$ &	PSNR &	MSE \\
+0,03 &	46,0144 &	0,0000 \\
+0,05 &	46,0150 &	0,0000 \\
+0,10 &	45,7986 &	0,0000 \\
+0,30 &	38,5736 &	0,0001 \\
+0,50 &	34,5017 &	0,0004 \\
+0,70 &	32,5543 &	0,0006 \\
+1,00 &	30,0225 &	0,0010 \\
+1,30 &	28,3122 &	0,0015 \\
+1,70 &	26,7945 &	0,0021 \\
+2,20 &	25,5891 &	0,0028 \\
+2,60 &	24,9735 &	0,0032 \\
+3,50 &	24,2843 &	0,0037 \\
+4,70 &	24,0387 &	0,0039 \\
+5,00 &	24,0297 &	0,0040 \\
+\hline
+\end{tabular}
+\end{tabular}
+\\
+% SEPARA
+\vspace*{20px}
+    
+\begin{tabular}{ |c|c|}
+\hline
+Parametro di Regolarizzazione ($\lambda$) & Deviazione Standard Rumore ($s$) \\
+\hline
+\begin{tabular}{c|c|c}
+$\lambda$ &	PSNR &	MSE \\
+0,0010 &	35,5178 &	0,0003 \\
+0,0050 &	32,6559 &	0,0005 \\
+0,0100 &	30,3529 &	0,0009 \\
+0,0300 &	26,4983 &	0,0022 \\
+0,0500 &	24,9073 &	0,0032 \\
+0,0700 &	24,0070 &	0,0040 \\
+0,1000 &	23,2139 &	0,0048 \\
+0,1500 &	22,4372 &	0,0057 \\
+0,2000 &	22,0675 &	0,0062 \\
+0,3000 &	21,5944 &	0,0069 \\
+0,5000 &	21,2634 &	0,0075 \\
+0,8000 &	20,0204 &	0,0100 \\
+1,0000 &	19,2500 &	0,0119 \\
+1,5000 &	18,9217 &	0,0128 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c|c}
+s &	PSNR &	MSE \\
+0,0050 &	34,4941 &	0,0004 \\
+0,0100 &	29,0755 &	0,0012 \\
+0,0150 &	25,6886 &	0,0027 \\
+0,0200 &	23,2291 &	0,0048 \\
+0,0250 &	21,3110 &	0,0074 \\
+0,0300 &	19,7429 &	0,0106 \\
+0,0350 &	18,3936 &	0,0145 \\
+0,0400 &	17,2533 &	0,0188 \\
+0,0450 &	16,2309 &	0,0238 \\
+0,0500 &	15,3137 &	0,0294 \\
+0,0600 &	13,7148 &	0,0425 \\
+0,0700 &	12,4175 &	0,0573 \\
+0,0800 &	11,2270 &	0,0754 \\
+0,0900 &	10,1951 &	0,0956 \\
+\hline
+\end{tabular}
+\end{tabular}
+%SEPARAAAAAA
+\end{center}
+
+\begin{tabular}{|c|c||c|c|}
+\hline
+Iterazioni & Errore Relativo  & Iterazioni & Errore Relativo \\
+\hline
+0 & 0,10691452160767745 & 25 & 0,060019356148640644 \\
+1 & 0,037655333688010176 & 26 & 0,061059773974728344 \\
+2 & 0,03251275664118382 & 27 & 0,06207822341455425 \\
+3 & 0,03130497490315447 & 28 & 0,06307583547085191 \\
+4 & 0,031051665862452928 & 29 & 0,06405365007183683 \\
+5 & 0,03168958680829709 & 30 & 0,0650126252669438 \\
+6 & 0,03319137910411622 & 31 & 0,06595364528957183 \\
+7 & 0,035089997038348655 & 32 & 0,06687752766537063 \\
+8 & 0,03697745164385523 & 33 & 0,0677850295785731 \\
+9 & 0,03878113235783735 & 34 & 0,068676853636001 \\
+10 & 0,04049859351299123 & 35 & 0,06955365306412699 \\
+11 & 0,04213755009927055 & 36 & 0,07041603640590115 \\
+12 & 0,043706509390786505 & 37 & 0,0712645717870468 \\
+13 & 0,04521304673492498 & 38 & 0,07209979076694777 \\
+14 & 0,046663578597460655 & 39 & 0,07292219179150843 \\
+15 & 0,04806347880972956 & 40 & 0,07373224328809694 \\
+16 & 0,049417261952573635 & 41 & 0,07453038644427974 \\
+17 & 0,050728756422287635 & 42 & 0,07531703771058508 \\
+18 & 0,05200124690969378 & 43 & 0,0760925910613362 \\
+19 & 0,053237585829820855 & 44 & 0,07685742003719785 \\
+20 & 0,05444027856484393 & 45 & 0,07761187958818772 \\
+21 & 0,05561154773313908 & 46 & 0,07835630772934217 \\
+22 & 0,05675338158560937 & 47 & 0,07909102702904769 \\
+23 & 0,05786757085285862 & 48 & 0,07981634595973 \\
+24 & 0,058955737301748426 & 49 & 0,08053256013223578 \\ 
+\hline
+\end{tabular}
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.5]{testIMG/Errore Relativo Variaizone Totale.png}
+\end{figure}
+
+\subsection{Conclusioni}
+Anche questo metodo risulta complessivamente un buon passo in avanti rispetto
+alla soluzione naive. Ottiene ottimi risultati anche se sembra non superare mai il limite
+della soluzione con Tikhonov (in entrambe le sue implementazioni).
+
+\section{Confronto tra metodi}
+Per facilitare il confronto sono riportati di seguito i dati già mostrati per i vari
+metodi, raggruppati in base al parametro a cui fanno riferimento. I metodi del gradiente
+coniugato sono limitati ad un massimo di 13 iterazioni, mentre
+quelli di discesa del gradiente a 50. Sempre per facilitare il confronto per ogni tabella
+è riportato un grafico raffigurante i dati di questa.
+
+\vspace{1cm}
+\begin{tabular}{ |c|}
+\hline
+\multicolumn{1}{|c|}{Dimensione kernel (d)} \\
+\hline
+\begin{tabular}{c|c|c|c|c}
+d &	Naive &	Tikhonov (GC) &	Tikhonov (DG) &	Variazione Totale \\
+\hline
+1 & 46,0233 & 46,0184 & 46,0233 & 46,0258 \\
+3 & 26,9202 & 31,4255 & 34,6372 & 34,6635 \\
+5 & 27,2361 & 30,1496 & 34,4819 & 34,5086 \\
+7 & 27,2163 & 30,1934 & 34,4974 & 34,5242 \\
+9 & 27,2012 & 30,2135 & 34,4791 & 34,5057 \\
+11 & 27,2027 & 30,1994 & 34,4666 & 34,4931 \\
+13 & 27,2245 & 30,2130 & 34,4695 & 34,4961 \\
+15 & 27,1621 & 30,2180 & 34,4832 & 34,5099 \\
+17 & 27,2457 & 30,2246 & 34,4678 & 34,4945 \\
+21 & 27,1954 & 30,2156 & 34,4586 & 34,4853 \\
+49 & 27,1644 & 30,2180 & 34,4883 & 34,5150 \\
+99 & 27,1967 & 30,2047 & 34,4802 & 34,5068 \\
+299 & 27,2429 & 30,1995 & 34,4855 & 34,5120\\
+599 & 27,1899 & 30,1902 & 34,4819 & 34,5085 \\
+\hline
+\end{tabular}
+\end{tabular}
+
+\hskip-2.5cm\includegraphics[scale=0.6]{testIMG/kernelDimGrafico.png} \\ 
+
+\begin{center}
+    \textit{Grafico in scala logaritmica}
+\end{center}
+
+%----------------------------------------
+
+\vspace*{20px}
+
+\begin{tabular}{ |c|}
+\hline
+\multicolumn{1}{|c|}{Deviazione Standard Kernel ($\sigma$)} \\
+\hline
+\begin{tabular}{c|c|c|c|c}
+$\sigma$ &	Naive & Tikhonov (GC) & Tikhonv (DG) & Variazione Totale\\
+\hline
+0,03 & 46,0120 & 46,0238 & 46,0121 & 46,0144 \\
+0,05 & 46,0125 & 46,0356 & 46,0125 & 46,0150 \\
+0,10 & 45,7960 & 45,7748 & 45,7961 & 45,7986 \\
+0,30 & 38,4357 & 38,4683 & 38,5602 & 38,5736 \\
+0,50 & 27,1954 & 32,9991 & 34,4751 & 34,5017 \\
+0,70 & 22,5941 & 32,0448 & 32,5380 & 32,5543 \\
+1,00 & 20,9502 & 30,2207 & 30,0166 & 30,0225 \\
+1,30 & 22,3672 & 28,6671 & 28,3105 & 28,3122 \\
+1,70 & 22,5950 & 27,1611 & 26,7954 & 26,7945 \\
+2,20 & 21,5127 & 25,8637 & 25,5907 & 25,5891 \\
+2,60 & 20,9510 & 25,1879 & 24,9751 & 24,9735 \\
+3,50 & 19,9164 & 24,4274 & 24,2859 & 24,2843 \\
+4,70 & 20,7026 & 24,2478 & 24,0409 & 24,0387 \\
+5,00 & 20,8376 & 24,2620 & 24,0320 & 24,0297 \\
+\hline
+\end{tabular}
+\end{tabular}
+
+\begin{center}
+\includegraphics[scale=0.55]{testIMG/SigmaGrafico.png}
+\end{center}
+%----------------------------------------
+
+\begin{tabular}{ |c|}
+\hline
+\multicolumn{1}{|c|}{Deviazione Standard del Rumore (s)} \\
+\hline
+\begin{tabular}{c|c|c|c|c}
+s  & Naive & Tikhonov (GC) & Tikhonov (DG) & Variazione Totale\\
+\hline
+0,005 & 27,1993 & 30,1970 & 34,4673 & 34,4941 \\
+0,010 & 21,1458 & 27,0157 & 29,0521 & 29,0755 \\
+0,015 & 17,6368 & 23,7035 & 25,6694 & 25,6886 \\
+0,020 & 15,0820 & 21,0571 & 23,2132 & 23,2291 \\
+0,025 & 13,1432 & 18,9082 & 21,2975 & 21,3110 \\
+0,030 & 11,6032 & 17,9395 & 19,7313 & 19,7429 \\
+0,035 & 10,2289 & 16,6333 & 18,3834 & 18,3936 \\
+0,040 & 9,0664 & 14,6486 & 17,2443 & 17,2533 \\
+0,045 & 8,0592 & 13,5419 & 16,2229 & 16,2309 \\
+0,050 & 7,1303 & 12,4860 & 15,3064 & 15,3137 \\
+0,060 & 5,5450 & 10,6566 & 13,7089 & 13,7148 \\
+0,070 & 4,2635 & 9,2865 & 12,4125 & 12,4175 \\
+0,080 & 3,1535 & 7,9644 & 11,2228 & 11,2270 \\
+0,090 & 2,1166 & 6,8824 & 10,1915 & 10,1951 \\
+\hline
+\end{tabular}
+\end{tabular}
+
+\hskip-2.5cm\includegraphics[scale=0.6]{testIMG/devStdRumoreGrafico.png}
+%---------------------------------------
+
+\vspace*{20px}
+
+\begin{center}
+    
+\begin{tabular}{ |c|}
+\hline
+\multicolumn{1}{|c|}{Parametro di Regolarizzazione ($\lambda$)} \\
+\hline
+\begin{tabular}{c|c|c|c}
+$\lambda$ &	Tikhonov GC &	Tikhonov DG & Variazione Totale \\
+\hline
+0,001 & 30,2434 & 34,5323 & 35,5178 \\
+0,005 & 30,1785 & 34,7684 & 32,6559 \\
+0,010 & 29,8959 & 34,8877 & 30,3529 \\
+0,030 & 28,5895 & 33,7112 & 26,4983 \\
+0,050 & 27,6021 & 32,0802 & 24,9073 \\
+0,070 & 26,8197 & 30,6269 & 24,0070 \\
+0,100 & 25,8625 & 28,9062 & 23,2139 \\
+0,150 & 24,5929 & 26,7975 & 22,4372 \\
+0,200 & 23,5711 & 25,2562 & 22,0675 \\
+0,300 & 21,9863 & 23,0855 & 21,5944 \\
+0,500 & 19,8716 & 20,4772 & 21,2634 \\
+0,800 & 18,3358 & 18,3358 & 20,0204 \\
+1,000 & 17,4367 & 17,4367 & 19,2500 \\
+1,500 & 16,0226 & 16,0226 & 18,9217 \\
+\hline
+\end{tabular}
+\end{tabular}
+
+
+\end{center}
+
+\hskip-2.5cm\includegraphics[scale=0.5]{testIMG/lambdaGrafico.png}
+
+In generale da questi test si nota come il metodo con la variazione totale e quello di
+Tikhonov diano risultati notevolmente migliori rispetto alla soluzione naive. Questa è una
+conclusione che ci si aspettava dato che, come spiegato in precedenza, la soluzione naive
+non tiene conto del rumore. 
+
+Dai test sulla dimensione e della deviazione standard del kernel e della deviazione
+standard del rumore, si nota una fedele corrispondenza tra variazione totale e Tikhonov
+(DG). Questo probabilmente perchè questi parametri non giocano alcun ruolo nella funzione
+di regolarizzazione, quindi la loro variazione non influisce sullo scarto che hanno 
+dalla soluzione naive. Scarto che rimane quasi costante per tutti i tre parametri (a parte
+una perturbazione nel caso della deviazione standard del kernel). Il metodo di Tikhonv
+(GC) tuttavia rimane, in due di questi tre parametri, inferiore al suo corrispettivo
+eseguito con il metodo di discesa del gradiente. Questo probabilmente perchè non è stato
+trovato il giusto numero di iterazioni massime e, come si è visto nel confronto tra i due,
+il metodo del gradiente coniugato necessita una buona calibrazione sotto questo aspetto.
+
+Diversa la situazione invece per quanto riguarda i test sul parametro di regolarizzazione.
+Da questi si evince che la soluzione tramite variazione totale mantiene un livello di PSNR
+più elevato anche per valori grandi di lambda. Si nota anche come in questi test la 
+differenza tra le due implementazioni di Tikhonov sia molto meno marcata.
+
+\section{Analisi statistica} 
+Per un'analisi più immediata si estrapolano dai dati la \textit{media} e
+\textit{deviazione standard}, nota anche come scarto quadratico medio. I dati presi in
+esame sono il \textit{Mean Squared Error} e il \textit{Peak signal-to-noise ratio} dei
+metodi utilizzati.\\
+L'errore quadratico medio (o MSE) indica la discrepanza quadratica media tra i valori dei
+dati osservati ed i valori dei dati stimati. Nella soluzione con variazione totale, che
+nella tabella sottostante è indicato  come "Var. Tot.", questo, in media, è molto alto in
+confronto agli altri. Esso infatti raggiunge un ordine di grandezza pari a $10^1$, a
+differenza delle soluzioni naive e Tikhonov con gradiente coniugato (Tk-GC) che si
+aggirano intorno al $10^{-3}$ mentre Tikhonov con discesa del gradiente \textbf{Tk-GD} a
+$10^{-4}$.\\
+La deviazione standard è indice di dispersione statico, ovvero la valutazione della differenza di dati raccolti, che possiamo esprimere come precisione. 
+Se la deviazione standard è piccola tutte le osservazioni distano poco dalla media, di conseguenza questa è un buon indicatore della serie di dati. Analizzando i valori raccolti risulta che, la media del metodi con MSE più piccolo è quello più preciso e il metodo che corrisponde a tali caratteristiche e quello di Tikhonov con discesa del gradiente.
+Per quanto riguarda il PSNR, che corrisponde al valore adottato per confrontare la qualità
+dell'immagine compressa in confronto all'originale, il ragionamento è inverso rispetto
+alla media, infatti maggiore è questo maggiore è la "somiglianza" con l'immagine originale; in altre parole l'immagine compressa presenta poco rumore.\\
+In questo caso il metodo della variazione totale riesce in media a dare un risultato migliore, ma bisogna anche considerare che ha una deviazione standard maggiore rispetto agli altri metodi.
+
+
+\begin{center}
+    
+\begin{tabular}{ |c|c|c|}
+\hline
+ & PSNR & MSE \\
+\hline
+\begin{tabular}{c}
+Metodo \\
+\hline
+Naive \\
+Tk-GC \\
+Tk-GD \\
+Var. Tot \\
+\hline
+\end{tabular} &
+\begin{tabular}{c|c}
+Media   &	Deviazione Standard \\
+\hline
+21,1347 &	0,0222 \\
+28,9613 &	0,0424 \\
+30,6511 &	0,0737 \\
+44,2520 &	0,5136 \\
+\hline
+\end{tabular} & 
+\begin{tabular}{c|c}
+Media &	Deviazione Standard \\
+\hline
+0,0077 &	3,9395 \\
+0,0012 &	1,2428 \\
+0,0008 &	1,4667 \\
+3,7820 &	4,2442 \\
+\hline
+\end{tabular}
+\end{tabular}
+\end{center}
+
+\section{Bibiliografia \& Sitografia}
+
 \begin{itemize}
-    \item Koci Erik, 0000997662
-    \item
-    \item
+\item https://virtuale.unibo.it/pluginfile.php/1072026/mod\_resource/content/1/imaging.pdf
+\item https://virtuale.unibo.it/pluginfile.php/1078642/mod\_resource/content/1/deblur\_it.pdf
+\item https://it.wikipedia.org/wiki/Matrice\_di\_convoluzione
+\item https://it.wikipedia.org/wiki/Funzione\_di\_diffusione\_del\_punto
+\item https://it.wikipedia.org/wiki/Regolarizzazione\_a\_variazione\_totale
+\item https://it.wikipedia.org/wiki/Errore\_quadratico\_medio
 \end{itemize}
 
-\section{Problema}
-\begin{enumerate}
-    \item Riportare e commentare i risultati ottenuti nei punti 2. 3. (e 4.) su un immagine del set creato e sualtre due immagini in bianco e nero (fotografiche/mediche/astronomiche ecc.)
-    \item Riportare delle tabelle con le misure di PSNR e MSE ottenute al variare dei parametri (dimensionekernel, valore di sigma, la deviazione standard del rumore, il parametro di regolarizzazione).
-    \item Calcolare sull’intero set di immagini medie e deviazione standard delle metriche per alcuni valori fissatidei parametri.
-    \item Analizzare su 2 esecuzioni le propriet`a dei metodi numerici utilizzati (gradiente coniugato e gradiente)in termini di numero di iterazioni, andamento dell'errore, della funzione obiettivo, norma del gradiente.3
-\end{enumerate}
 
 \end{document}
 

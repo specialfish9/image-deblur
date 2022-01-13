@@ -4,6 +4,10 @@ import numpy as np
 from numpy.random.mtrand import negative_binomial
 
 
+def _er(o, c):
+    import scipy as scipy
+    return scipy.linalg.norm(o-c, 2) / scipy.linalg.norm(o,2) 
+
 def lstsq(x, a, b):
     """
     least-squares function implementation
@@ -97,7 +101,7 @@ def blur_picture(picture, k, s=0.004):
     return A(picture, k) + noise
 
 
-def naive_deblur(blurred, n, m, k, max_iter=50):
+def naive_deblur(blurred, n, m, k, max_iter=50, picture=None):
     """
     Deblur using naive method: find the absolute minimum of lstsq(x, k, blurred) using conjugate gradient
     @param blurred: Blurred image
@@ -114,14 +118,19 @@ def naive_deblur(blurred, n, m, k, max_iter=50):
     # Gradient of f
     grad_f = lambda x: lstsq_grad(x.reshape(n, m), k, blurred).reshape(n * m)
 
+    errori = []
+
+    def err_rel(xk):
+        errori.append(_er(picture, xk.reshape((n,m))))
+
     # Initial guess
     x0 = np.zeros(n * m)
 
-    minimum = minimize(f, x0, jac=grad_f, options={'maxiter': max_iter}, method='CG')
-    return minimum.x.reshape((n, m))
+    minimum = minimize(f, x0, jac=grad_f, options={'maxiter': max_iter}, method='CG', callback=err_rel)
+    return minimum.x.reshape((n, m)), errori
 
 
-def regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=50):
+def regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=13):
     """
     Deblur image finding the absolute minimum of lstsq  with Tikhonov regularization
     @param blurred: Image to de-blur
@@ -261,169 +270,6 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     picture = picture[:, :, 0]
     n, m = picture.shape
 
-
-    """
-    KERNEL DIM TEST
-    """
-    
-    print("KERNEL DIM TEST\n")
-    file = open("test_output/ker_dim_test.csv", "w")
-    file.write("ker_dim,psnr,mse\n")
-
-    values = [
-        3,
-        5,
-        7,
-        9,
-        13,
-        49,
-        99,
-        299,
-        599
-    ]
-    
-    for i in values:
-        if n < i:
-            print("ERROR: image to small")
-            continue
-            
-        print(">iter:", i)
-        kernel = gaussian_kernel(i, sigma)
-        k = psf_fft(kernel, i, (n, m))
-
-        print("Phase 1")
-        blurred = blur_picture(picture, k, noise_std_dev)
-
-
-        print("Phase 2")
-        deblurred_naive = naive_deblur(blurred, n, m, k)
-        p, mmm = print_res(picture, deblurred_naive)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 3.1")
-        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_gc)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 3.2")
-        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_gradient)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 4")
-        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_tot_var)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-    file.close()
-
-    """
-    SIGMA DIM TEST
-    """
-    
-    print("SIGMA DIM TEST\n")
-    file = open("test_output/sigma_test.csv", "w")
-    file.write("sigma,psnr,mse\n")
-
-    values = [
-        0.1,
-        0.5,
-        1,
-        1.3,
-        1.7,
-        2.2,
-        2.6,
-        3.5,
-        4.7
-    ]
-    
-    for i in values:
-        if n < i:
-            print("ERROR: image to small")
-            continue
-            
-        print(">iter:", i)
-        kernel = gaussian_kernel(ker_len, i)
-        k = psf_fft(kernel, ker_len, (n, m))
-
-        print("Phase 1")
-        blurred = blur_picture(picture, k, noise_std_dev)
-
-
-        print("Phase 2")
-        deblurred_naive = naive_deblur(blurred, n, m, k)
-        p, mmm = print_res(picture, deblurred_naive)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 3.1")
-        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_gc)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 3.2")
-        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_gradient)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 4")
-        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_tot_var)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-    file.close()
-
-
-
-    """
-    NOISE STD DEV TEST
-    """
-    print("NOISE STD DEV TEST\n")
-    file = open("test_output/noise_std_dev_test.csv", "w")
-    file.write("Std_dev,psnr,mse\n")
-
-    values = [
-        0.01,
-        0.02,
-        0.03,
-        0.04,
-        0.05,
-        0.06,
-        0.07,
-        0.08,
-        0.09
-    ]
-
-    for i in values:
-        kernel = gaussian_kernel(ker_len, sigma)
-        k = psf_fft(kernel, ker_len, (n, m))
-        print(">iter:", i)
-
-        print("Phase 1")
-        blurred = blur_picture(picture, k, i)
-
-        print("Phase 2")
-        deblurred_naive = naive_deblur(blurred, n, m, k)
-        p, mmm = print_res(picture, deblurred_naive)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 3.1")
-        deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_gc)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 3.2")
-        deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_gradient)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-        print("Phase 4")
-        deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
-        p, mmm = print_res(picture, deblurred_tot_var)
-        file.write("{},{},{}\n".format(i, p, mmm))
-
-    file.close()
-
-
     """
     LAMBDA TEST
     """
@@ -433,13 +279,20 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
     file = open("test_output/lambda_test.csv", "w")
     file.write("lambda,psnr,mse\n")
 
-    values = [0.01,
+    values = [
+              0.001,
+              0.005,
+              0.01,
+              0.03,
               0.05,
+              0.07,
               0.10,
               0.15,
               0.20,
               0.30,
-              0.50]
+              0.50,
+              1.5
+]
 
     kernel = gaussian_kernel(ker_len, sigma)
     k = psf_fft(kernel, ker_len, (n, m))
@@ -454,20 +307,21 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e
         p, mmm = print_res(picture, deblurred_gc)
         file.write("{},{},{}\n".format(i, p, mmm))
 
+    """
     print("Phase 3.2")
     for i in values:
         print(">iter:", i)
         deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, i)
         p, mmm = print_res(picture, deblurred_gradient)
         file.write("{},{},{}\n".format(i, p, mmm))
-
+    
     print("Phase 4")
     for i in values:
         print(">iter:", i)
         deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, i)
         p, mmm = print_res(picture, deblurred_tot_var)
         file.write("{},{},{}\n".format(i, p, mmm))
-
+    """
     file.close()
     
 
@@ -508,10 +362,35 @@ def elaborate_datasource_stats(image_path, sigma, ker_len, noise_std_dev=5e-3, l
 
     return psnr, mse
 
+def elaborate_datasource_er(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
+    import matplotlib.pyplot as plt
+    from helpers import gaussian_kernel, psf_fft
 
-def _er(o, c):
-    import scipy as scipy
-    return scipy.linalg.norm(o-c, 2) / scipy.linalg.norm(o,2) 
+    picture = plt.imread(image_path)
+    picture = picture[:, :, 0]
+    n, m = picture.shape
+
+    kernel = gaussian_kernel(ker_len, sigma)
+    k = psf_fft(kernel, ker_len, (n, m))
+
+    print("Phase 1")
+    blurred = blur_picture(picture, k, noise_std_dev)
+
+
+    print("Phase 2")
+    deblurred_naive = naive_deblur(blurred, n, m, k)
+
+
+    print("Phase 3.1")
+    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
+
+    print("Phase 3.2")
+    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
+
+    print("Phase 4")
+    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
+
+
 
 def elaborate_datasource_gc_vs_gd(image_path, sigma, ker_len, noise_std_dev=5e-3, lamb=1e-5):
     import matplotlib.pyplot as plt
@@ -529,9 +408,9 @@ def elaborate_datasource_gc_vs_gd(image_path, sigma, ker_len, noise_std_dev=5e-3
     print("Blurring...")
     blurred = blur_picture(picture, k, noise_std_dev)
 
-    i = 5
+    i = 50
     file.write("max_iter:psnrCg:psnrCd:mseCg:mseCd:erCg:erCd\n")
-    while i <= 50:
+    while i <= 100:
         print("New iteration: ", i)
         print("cg...")
         deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=i)

@@ -94,7 +94,7 @@ def blur_picture(picture, k, s=0.004):
     return A(picture, k) + noise
 
 
-def naive_deblur(blurred, n, m, k, max_iter=50):
+def naive_deblur(blurred, n, m, k, original, max_iter=15):
     """
     Deblur using naive method: find the absolute minimum of lstsq(x, k, blurred) using conjugate gradient
     @param blurred: Blurred image
@@ -102,9 +102,11 @@ def naive_deblur(blurred, n, m, k, max_iter=50):
     @param m: height
     @param k: Gaussian blur matrix
     @param max_iter: Maximum number of iterations
+    @param original: Original picture
     @return: de-blurred image
     """
     from scipy.optimize import minimize
+    from helpers import rel_err
 
     # Function to minimize
     f = lambda x: lstsq(x.reshape(n, m), k, blurred)
@@ -114,11 +116,14 @@ def naive_deblur(blurred, n, m, k, max_iter=50):
     # Initial guess
     x0 = np.zeros(n * m)
 
-    minimum = minimize(f, x0, jac=grad_f, options={'maxiter': max_iter}, method='CG')
-    return minimum.x.reshape((n, m))
+    errors = []
+    log_err = lambda xk: errors.append(rel_err(original, xk.reshape((n,m))))
+
+    minimum = minimize(f, x0, jac=grad_f, options={'maxiter': max_iter}, method='CG', callback=log_err)
+    return minimum.x.reshape((n, m)), errors
 
 
-def regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=50):
+def regularized_deblur_cg(blurred, n, m, k, lamb, original, max_iter=15):
     """
     Deblur image finding the absolute minimum of lstsq  with Tikhonov regularization
     @param blurred: Image to de-blur
@@ -127,9 +132,11 @@ def regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=50):
     @param k: Gaussian-kernel
     @param lamb: regularization parameter
     @param max_iter: Maximum number of iterations
+    @param original: Original picture
     @return: De-blurred image
     """
     from scipy.optimize import minimize
+    from helpers import rel_err
 
     # Function to minimize
     f = lambda x: lstsq_tikhonov(x.reshape(n, m), k, blurred, lamb)
@@ -139,8 +146,11 @@ def regularized_deblur_cg(blurred, n, m, k, lamb, max_iter=50):
     # Initial guess
     x0 = np.zeros(n * m)
 
-    minimum = minimize(f, x0, jac=grad_f, options={'maxiter': max_iter}, method='CG')
-    return minimum.x.reshape((n, m))
+    errors = []
+    log_err = lambda xk: errors.append(rel_err(original, xk.reshape((n,m))))
+
+    minimum = minimize(f, x0, jac=grad_f, options={'maxiter': max_iter}, method='CG', callback=log_err)
+    return minimum.x.reshape((n, m)), errors
 
 
 def next_step(x, f, grad_x, n, m):
@@ -170,7 +180,7 @@ def next_step(x, f, grad_x, n, m):
         return alpha
 
 
-def gradient_descend(f, n, m, grad_f, x0, max_iter=50, absolute_stop=1.e-5):
+def gradient_descend(f, n, m, grad_f, x0, original, max_iter=50, absolute_stop=1.e-5):
     """
     Gradient descend method implementation.
     @param f: Function to minimize
@@ -178,11 +188,14 @@ def gradient_descend(f, n, m, grad_f, x0, max_iter=50, absolute_stop=1.e-5):
     @param m: Height
     @param grad_f: Gradient of [f]
     @param x0: Initial guess
+    @param original: Original picture
     @param max_iter: Maximum number of iterations
     @param absolute_stop: Absolute stop value
     @return: Min value calculated for [f]
     """
+    from helpers import rel_err
     k = 0
+    errors = []
 
     while np.linalg.norm(grad_f(x0)) > absolute_stop and k < max_iter:
         k += 1
@@ -194,11 +207,12 @@ def gradient_descend(f, n, m, grad_f, x0, max_iter=50, absolute_stop=1.e-5):
             return None
 
         x0 = x0 - alpha * gradient.reshape(n * m)
+        errors.append(rel_err(original, x0.reshape((n,m))))
 
-    return x0.reshape(n, m)
+    return x0.reshape(n, m), errors
 
 
-def regularized_deblur_gradient(blurred, n, m, ker, lamb, max_iter=50, absolute_stop=1.e-5):
+def regularized_deblur_gradient(blurred, n, m, ker, lamb, original, max_iter=50, absolute_stop=1.e-5):
     """
       Deblur an image using Gradient Descend method
       @param blurred: Blurred image
@@ -208,6 +222,7 @@ def regularized_deblur_gradient(blurred, n, m, ker, lamb, max_iter=50, absolute_
       @param max_iter: Maximum number of iterations
       @param absolute_stop: Absolute stop value
       @param lamb: Regularization parameter
+      @param original: Original picture
       @return: De-blurred image
     """
 
@@ -217,10 +232,10 @@ def regularized_deblur_gradient(blurred, n, m, ker, lamb, max_iter=50, absolute_
 
     f = lambda x: lstsq_tikhonov(x.reshape(n, m), ker, blurred, lamb)
     grad_f = lambda x: lstsq_tikhonov_grad(x.reshape(n, m), ker, blurred, lamb)
-    return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
+    return gradient_descend(f, n, m, grad_f, x0, original, max_iter, absolute_stop)
 
 
-def regularized_deblur_tot_var(blurred, n, m, ker, lamb, max_iter=50, absolute_stop=1.e-5):
+def regularized_deblur_tot_var(blurred, n, m, ker, lamb, original, max_iter=50, absolute_stop=1.e-5):
     """
       Deblur an image using Gradient Descend method with total variation
       @param blurred: Blurred image
@@ -230,6 +245,7 @@ def regularized_deblur_tot_var(blurred, n, m, ker, lamb, max_iter=50, absolute_s
       @param max_iter: Maximum number of iterations
       @param absolute_stop: Absolute stop value
       @param lamb: regularization parameter
+      @param original: Original picture
       @return: De-blurred image
     """
     x0 = np.zeros(n * m)
@@ -238,20 +254,19 @@ def regularized_deblur_tot_var(blurred, n, m, ker, lamb, max_iter=50, absolute_s
     f = lambda x: lstsq_tot_var(x.reshape(n, m), ker, blurred, lamb)
     grad_f = lambda x: lstsq_tot_var_grad(x.reshape(n, m), ker, blurred, lamb)
 
-    return gradient_descend(f, n, m, grad_f, x0, max_iter, absolute_stop)
+    return gradient_descend(f, n, m, grad_f, x0, original, max_iter, absolute_stop)
 
 
-def print_res(original, deblurred, time):
+def print_res(original, deblurred):
     from skimage import metrics
 
     psnr = metrics.peak_signal_noise_ratio(original, deblurred)
     mse = metrics.mean_squared_error(original, deblurred)
-    print('This is the mse: ', mse)
-    print('This is the psnr: ', psnr)
-    print('This is the time: ', time)
+    print('mse: ', mse)
+    print('psnr: ', psnr)
 
 
-def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e-5, show_pic=True):
+def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e-5, show_pic=True, create_error_logs=False):
     """
     Given an image path first blur the image, then de-blur it using different methods
     @param image_path: Image path
@@ -263,7 +278,6 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e
     """
     from matplotlib import pyplot as plt
     from helpers import gaussian_kernel, psf_fft
-    import time
 
     fig = plt.figure(figsize=(15, 10))
     rows = 2
@@ -294,20 +308,11 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e
         plt.axis("off")
         plt.title("Blurred (Kernel length: {}, sigma: {})".format(ker_len, sigma))
 
-    start = time.time()
-
     # Phase 2: naive solution
     print("Phase 2")
-    deblurred_naive = naive_deblur(blurred, n, m, k)
+    deblurred_naive, err_naive = naive_deblur(blurred, n, m, k, picture)
 
-
-    for i in range(n):
-        for j in range(m):
-            if deblurred_naive[i][j] > 1:
-                print(deblurred_naive[i][j])
-
-    t_2 = time.time()
-    print_res(picture, deblurred_naive, t_2 - start)
+    print_res(picture, deblurred_naive)
 
     if show_pic:
         fig.add_subplot(rows, columns, 3)
@@ -317,9 +322,8 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e
 
     # Phase 3.1: solution with conjugate gradient method and Tikhonov regularization
     print("Phase 3.1")
-    deblurred_gc = regularized_deblur_cg(blurred, n, m, k, lamb)
-    t_31 = time.time()
-    print_res(picture, deblurred_gc, t_31 - t_2)
+    deblurred_gc, err_gc = regularized_deblur_cg(blurred, n, m, k, lamb, picture)
+    print_res(picture, deblurred_gc)
 
     if show_pic:
         fig.add_subplot(rows, columns, 4)
@@ -329,11 +333,10 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e
 
     # Phase 3.2: solution with gradient descend and Tikhonov regularization
     print("Phase 3.2")
-    deblurred_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb)
-    t_32 = time.time()
+    deblurred_gradient, err_gradient = regularized_deblur_gradient(blurred, n, m, k, lamb, picture)
 
     if deblurred_gradient is not None:
-        print_res(picture, deblurred_gradient, t_32 - t_31)
+        print_res(picture, deblurred_gradient)
         if show_pic:
             fig.add_subplot(rows, columns, 5)
             plt.imshow(deblurred_gradient, cmap='gray', vmin=0, vmax=1)
@@ -342,11 +345,10 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e
 
     # Phase 4: solution with gradient descend and total variation regularization
     print("Phase 4")
-    deblurred_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb)
-    t_4 = time.time()
+    deblurred_tot_var, err_tot_var = regularized_deblur_tot_var(blurred, n, m, k, lamb, picture)
 
     if deblurred_tot_var is not None:
-        print_res(picture, deblurred_tot_var, t_4 - t_32)
+        print_res(picture, deblurred_tot_var)
         if show_pic:
             fig.add_subplot(rows, columns, 6)
             plt.imshow(deblurred_tot_var, cmap='gray', vmin=0, vmax=1)
@@ -356,11 +358,35 @@ def elaborate_datasource(image_path, sigma, ker_len, noise_std_dev=5e-2, lamb=1e
     if show_pic:
         plt.show()
 
+    if create_error_logs:
+        file = open("error_log.csv", "w+")
+        
+        file.write("Naive\n")
+        for i in range(len(err_naive)):
+            file.write("{}:{}\n".format( i, err_naive[i]))
+        
+        file.write("Tikhonov GC\n")
+        for i in range(len(err_gc)):
+            file.write("{}:{}\n".format( i, err_gc[i]))
+
+        file.write("Tikhonov GD\n")
+        for i in range(len(err_gradient)):
+            file.write("{}:{}\n".format( i, err_gradient[i]))
+
+
+        file.write("Total Variation\n")
+        for i in range(len(err_tot_var)):
+            file.write("{}:{}\n".format( i, err_tot_var[i]))
+
+
+        file.close()
+
 
 def main():
     ds1 = './datasource/five.png'
 
-    elaborate_datasource(ds1, 0.5, 5, lamb=0.02)
+    elaborate_datasource(ds1, 0.5, 5, create_error_logs=True, show_pic=False)
+    return
     elaborate_datasource(ds1, 1, 7)
     elaborate_datasource(ds1, 1.3, 9)
 

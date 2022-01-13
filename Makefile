@@ -1,5 +1,5 @@
 MAIN = src/main.py
-MAIN_TEST = src/main_test.py
+MAIN_TEST = test/main_test.py
 
 default: run
 
